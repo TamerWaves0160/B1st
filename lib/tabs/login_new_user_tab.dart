@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // for AutofillHints
+// for AutofillHints
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/auth_service.dart';
 import '../widgets/hero_banner.dart';
 import '../utils/form_validators.dart';
 
@@ -16,7 +15,7 @@ class _LoginNewUserTabState extends State<LoginNewUserTab> {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
-  final _auth = const AuthService();
+
 
   bool _isLogin = true;
   bool _busy = false;
@@ -50,28 +49,25 @@ class _LoginNewUserTabState extends State<LoginNewUserTab> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final messenger = ScaffoldMessenger.of(context); // capture BEFORE await
     setState(() => _busy = true);
+
     try {
       final email = _email.text.trim();
-      final pass = _password.text;
+      final pass  = _password.text;
+
       if (_isLogin) {
-        await _auth.signIn(email: email, password: pass);
+        await FirebaseAuth.instance.signInWithEmailAndPassword(email: email, password: pass);
+        messenger.showSnackBar(const SnackBar(content: Text('Signed in.')));
       } else {
-        await _auth.createAccount(email: email, password: pass);
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_isLogin ? 'Signed in.' : 'Account created.')),
-        );
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: pass);
+        messenger.showSnackBar(const SnackBar(content: Text('Account created.')));
       }
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_friendlyAuthError(e))),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(_friendlyAuthError(e))));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unexpected error: $e')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('Unexpected error: $e')));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -79,23 +75,18 @@ class _LoginNewUserTabState extends State<LoginNewUserTab> {
 
   Future<void> _resetPassword() async {
     final email = _email.text.trim();
+    final messenger = ScaffoldMessenger.of(context); // capture BEFORE await
+
     if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter your email first.')),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('Enter your email first.')));
       return;
     }
+
     try {
-      await _auth.sendPasswordReset(email: email);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password reset email sent.')),
-        );
-      }
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      messenger.showSnackBar(const SnackBar(content: Text('Password reset email sent.')));
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_friendlyAuthError(e))),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(_friendlyAuthError(e))));
     }
   }
 

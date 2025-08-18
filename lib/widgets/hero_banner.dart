@@ -28,11 +28,7 @@ class HeroBanner extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Begin Observation — to be linked')),
-                  );
-                },
+                onPressed: () => Navigator.of(context).pushNamed('/observe'),
                 child: const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                   child: Text('Begin Observation'),

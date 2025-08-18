@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'pages/home_shell.dart';
+import 'pages/observation_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,7 +15,8 @@ Future<void> main() async {
         apiKey: 'AIzaSyBpaMnwNPv6WGofjEHFyDuysVcMjmlA2r4',
         authDomain: 'behaviorfirst-515f1.firebaseapp.com',
         projectId: 'behaviorfirst-515f1',
-        storageBucket: 'behaviorfirst-515f1.firebasestorage.app',
+        // IMPORTANT: storageBucket should be the bucket name, not firebasestorage.app
+        storageBucket: 'behaviorfirst-515f1.appspot.com',
         messagingSenderId: '538557537127',
         appId: '1:538557537127:web:8fb975023b577abd9badc2',
         measurementId: 'G-4DGSVZPX30',
@@ -42,6 +44,9 @@ class BehaviorFirstApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: const HomeShell(),
+      routes: {
+        '/observe': (context) => const ObservationPage(), // <-- added
+      },
     );
   }
 }
