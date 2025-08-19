@@ -18,16 +18,16 @@ class _ObservationPageState extends State<ObservationPage> {
   // dropdown fed by a Students collection.
   final TextEditingController _studentCtrl = TextEditingController();
 
-  // Behavior type — more to be added later.
+  // Behavior type — more to be added later. Will be a dropdown
   final List<String> _behaviorTypes = const [
     'Noncompliance', 'Disruption', 'Aggression', 'Elopement', 'Off-task', 'Other'
   ];
   String? _selectedBehaviorType;
 
-  // Intensity from 1 to 5.
+  // Intensity from 1 to 5. Need to change to a mild, moderate, severe scale.
   double _intensity = 3;
 
-  // (Antecedent/Consequence)
+  // (Antecedent/Consequence) Move this to before the Intensity scale.
   final List<String> _antecedents = const [
     'Demand placed', 'Transition', 'Attention diverted', 'Unstructured time', 'Denied access', 'Other'
   ];
@@ -117,7 +117,7 @@ class _ObservationPageState extends State<ObservationPage> {
 
     await ref.add(data);
   }
-
+  // Change below to If logged, then clear but remain on same student.
   // Quick Log: creates an instantaneous event with no duration.
   Future<void> _quickLog() async {
     if (!_validateCore()) return;

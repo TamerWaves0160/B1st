@@ -40,6 +40,7 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
         title: const Text('BehaviorFirst'),
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true, // ← helps on smaller screens / large text scaling
           tabs: const [
             Tab(text: 'Login / New User'),
             Tab(text: 'Features & Pricing'),
