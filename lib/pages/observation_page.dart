@@ -1,3 +1,17 @@
+// =============================================================
+// BehaviorFirst — lib/pages/observation_page.dart (Annotated, v4)
+// -------------------------------------------------------------
+// Requested changes implemented:
+//  • Tab spacing fix handled in home_shell.dart (see chat snippet)
+//  • Behavior Type is now a DROPDOWN (not chips)
+//  • Context (Antecedent & Consequence) is REQUIRED and appears BEFORE intensity
+//  • Intensity now uses three levels: Mild / Moderate / Severe
+//      - Stored as `severity` (string)
+//      - Also writes numeric `intensity` (1,3,5) for compatibility with rules
+//  • After any successful record, the form clears BUT keeps the same student
+//  • Recent Events list shows Severity
+// =============================================================
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,53 +25,71 @@ class ObservationPage extends StatefulWidget {
 }
 
 class _ObservationPageState extends State<ObservationPage> {
-  // ---------- FORM STATE ----------
-  final _formKey = GlobalKey<FormState>();
+  // ---------- STATE ----------
+  String? _selectedStudentId;
+  String? _selectedStudentName;
 
-  // Student is a free-text field for now; later I will replace with a
-  // dropdown fed by a Students collection.
-  final TextEditingController _studentCtrl = TextEditingController();
-
-  // Behavior type — more to be added later. Will be a dropdown
   final List<String> _behaviorTypes = const [
-    'Noncompliance', 'Disruption', 'Aggression', 'Elopement', 'Off-task', 'Other'
+    'Noncompliance',
+    'Disruption',
+    'Aggression',
+    'Elopement',
+    'Off-task',
+    'Other'
   ];
   String? _selectedBehaviorType;
 
-  // Intensity from 1 to 5. Need to change to a mild, moderate, severe scale.
-  double _intensity = 3;
+  // Severity (replaces old free slider)
+  final List<String> _severityLevels = const ['Mild', 'Moderate', 'Severe'];
+  String _severity = 'Mild';
 
-  // (Antecedent/Consequence) Move this to before the Intensity scale.
   final List<String> _antecedents = const [
-    'Demand placed', 'Transition', 'Attention diverted', 'Unstructured time', 'Denied access', 'Other'
+    'Demand placed',
+    'Transition',
+    'Attention diverted',
+    'Unstructured time',
+    'Denied access',
+    'Other'
   ];
   final List<String> _consequences = const [
-    'Redirection', 'Removal of item', 'Planned ignoring', 'Break given', 'Call home', 'Other'
+    'Redirection',
+    'Removal of item',
+    'Planned ignoring',
+    'Break given',
+    'Call home',
+    'Other'
   ];
-  String? _antecedent;
-  String? _consequence;
+  String? _antecedent; // REQUIRED
+  String? _consequence; // REQUIRED
 
-  // Location and notes — optional free text.
   final TextEditingController _locationCtrl = TextEditingController();
   final TextEditingController _notesCtrl = TextEditingController();
 
-  // ---------- TIMER STATE ----------
   Timer? _timer;
-  DateTime? _startedAt; // when timing began
-  Duration _elapsed = Duration.zero; // live-updated while timing in progress
+  DateTime? _startedAt;
+  Duration _elapsed = Duration.zero;
 
   bool get _isTiming => _timer != null;
 
   @override
   void dispose() {
-    _studentCtrl.dispose();
     _locationCtrl.dispose();
     _notesCtrl.dispose();
     _timer?.cancel();
     super.dispose();
   }
 
-  // Elapsed timer display.
+  int _intensityFromSeverity(String s) {
+    switch (s) {
+      case 'Mild':
+        return 1;
+      case 'Severe':
+        return 5;
+      default:
+        return 3; // Moderate
+    }
+  }
+
   String get _elapsedLabel {
     final total = _elapsed.inSeconds;
     final mm = (total ~/ 60).toString().padLeft(2, '0');
@@ -65,11 +97,77 @@ class _ObservationPageState extends State<ObservationPage> {
     return '$mm:$ss';
   }
 
-  // Validate core required fields before writing to Firestore.
+  // ---------- STUDENTS ----------
+  Stream<QuerySnapshot<Map<String, dynamic>>> _studentsStream(String uid) {
+    return FirebaseFirestore.instance
+        .collection('students')
+        .where('ownerUid', isEqualTo: uid)
+        .orderBy('name')
+        .snapshots();
+  }
+
+  Future<void> _showAddStudentDialog() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final messenger = ScaffoldMessenger.of(context);
+    if (user == null) {
+      messenger.showSnackBar(
+          const SnackBar(content: Text('Sign in to add students.')));
+      return;
+    }
+
+    final nameCtrl = TextEditingController();
+    final enteredName = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) =>
+          AlertDialog(
+            title: const Text('Add Student'),
+            content: TextField(
+              controller: nameCtrl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Student name',
+                hintText: 'e.g., Alex R.',
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(dialogCtx).pop(),
+                  child: const Text('Cancel')),
+              FilledButton(
+                onPressed: () =>
+                    Navigator.of(dialogCtx).pop(nameCtrl.text.trim()),
+                child: const Text('Add'),
+              ),
+            ],
+          ),
+    );
+
+    if (enteredName == null || enteredName.isEmpty) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance.collection('students').add({
+        'ownerUid': user.uid,
+        'name': enteredName,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      if (!mounted) return;
+      setState(() {
+        _selectedStudentId = doc.id;
+        _selectedStudentName = enteredName;
+      });
+      messenger.showSnackBar(
+          SnackBar(content: Text('Student added: $enteredName')));
+    } catch (e) {
+      messenger.showSnackBar(
+          SnackBar(content: Text('Failed to add student: $e')));
+    }
+  }
+
+  // ---------- VALIDATION + WRITE ----------
   bool _validateCore() {
-    if ((_studentCtrl.text.trim()).isEmpty) {
+    if (_selectedStudentId == null ||
+        (_selectedStudentName == null || _selectedStudentName!.isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Student is required.')),
+        const SnackBar(content: Text('Select or add a student.')),
       );
       return false;
     }
@@ -79,95 +177,105 @@ class _ObservationPageState extends State<ObservationPage> {
       );
       return false;
     }
+    if (_antecedent == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Antecedent is required.')),
+      );
+      return false;
+    }
+    if (_consequence == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Consequence is required.')),
+      );
+      return false;
+    }
     return true;
   }
 
-  // Core Firestore write. All entries get date/time stamps. Duration is only
-  // for timed events.
-  Future<void> _writeEvent({DateTime? startedAt, DateTime? endedAt}) async {
+  Future<bool> _writeEvent({DateTime? startedAt, DateTime? endedAt}) async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You must be signed in to record events.')),
-      );
-      return;
-    }
+    final messenger = ScaffoldMessenger.of(context);
 
-    final ref = FirebaseFirestore.instance.collection('behavior_events');
+    if (user == null) {
+      messenger.showSnackBar(
+          const SnackBar(content: Text('You must be signed in.')));
+      return false;
+    }
 
     int? duration;
     if (startedAt != null && endedAt != null) {
-      duration = endedAt.difference(startedAt).inSeconds;
+      duration = endedAt
+          .difference(startedAt)
+          .inSeconds;
     }
 
     final data = <String, dynamic>{
       'uid': user.uid,
-      'student': _studentCtrl.text.trim(),
+      'studentId': _selectedStudentId,
+      'studentName': _selectedStudentName,
       'behaviorType': _selectedBehaviorType,
-      'intensity': _intensity.round(),
+      'severity': _severity,
+      // new string field
+      'intensity': _intensityFromSeverity(_severity),
+      // keep numeric for rules/analytics
       'antecedent': _antecedent?.trim(),
       'consequence': _consequence?.trim(),
-      'location': _locationCtrl.text.trim().isEmpty ? null : _locationCtrl.text.trim(),
-      'notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      'location': _locationCtrl.text
+          .trim()
+          .isEmpty ? null : _locationCtrl.text.trim(),
+      'notes': _notesCtrl.text
+          .trim()
+          .isEmpty ? null : _notesCtrl.text.trim(),
       'createdAt': FieldValue.serverTimestamp(),
       if (startedAt != null) 'startedAt': Timestamp.fromDate(startedAt),
       if (endedAt != null) 'endedAt': Timestamp.fromDate(endedAt),
       if (duration != null) 'durationSeconds': duration,
     };
 
-    await ref.add(data);
-  }
-  // Change below to If logged, then clear but remain on same student.
-  // Quick Log: creates an instantaneous event with no duration.
-  Future<void> _quickLog() async {
-    if (!_validateCore()) return;
-
-    // Grab a reference BEFORE any await so we don't need context later.
-    final messenger = ScaffoldMessenger.of(context);
-
     try {
-      await _writeEvent();
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Event recorded.')),
-      );
+      await FirebaseFirestore.instance.collection('behavior_events').add(data);
+      messenger.showSnackBar(const SnackBar(content: Text('Event recorded.')));
+      return true;
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Failed to record: $e')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('Failed to record: $e')));
+      return false;
     }
   }
 
-  // Start/Stop timer for duration-based behaviors.
+  void _resetFormKeepStudent() {
+    setState(() {
+      // keep student id/name
+      _selectedBehaviorType = null;
+      _severity = 'Mild';
+      _antecedent = null;
+      _consequence = null;
+      _locationCtrl.clear();
+      _notesCtrl.clear();
+      _elapsed = Duration.zero;
+      _startedAt = null;
+      _timer?.cancel();
+      _timer = null;
+    });
+  }
+
+  Future<void> _quickLog() async {
+    if (!_validateCore()) return;
+    final ok = await _writeEvent();
+    if (ok) _resetFormKeepStudent();
+  }
+
   void _toggleTimer() async {
     if (_isTiming) {
-      // Stopping: finalize duration and write the event.
       _timer?.cancel();
       _timer = null;
       final ended = DateTime.now();
       final started = _startedAt!;
-      setState(() {
-        _startedAt = null;
-      });
+      setState(() => _startedAt = null);
 
       if (!_validateCore()) return;
-
-      // Capture messenger BEFORE await
-      final messenger = ScaffoldMessenger.of(context);
-
-      try {
-        await _writeEvent(startedAt: started, endedAt: ended);
-        messenger.showSnackBar(
-          SnackBar(content: Text('Duration recorded: $_elapsedLabel')),
-        );
-      } catch (e) {
-        messenger.showSnackBar(
-          SnackBar(content: Text('Failed to record: $e')),
-        );
-      } finally {
-        if (mounted) setState(() => _elapsed = Duration.zero);
-      }
+      final ok = await _writeEvent(startedAt: started, endedAt: ended);
+      if (ok && mounted) _resetFormKeepStudent();
     } else {
-      // Starting timer (no async gap here)
       setState(() {
         _startedAt = DateTime.now();
         _elapsed = Duration.zero;
@@ -181,220 +289,452 @@ class _ObservationPageState extends State<ObservationPage> {
     }
   }
 
+  // ---------- UI HELPERS ----------
+  String _formatWhen(Timestamp? ts) {
+    if (ts == null) return '';
+    final dt = ts.toDate();
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${dt.month}/${dt.day}/${dt.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Begin Observation'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ---------- Student ----------
-              Card(
-                elevation: 0,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Student', style: TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _studentCtrl,
-                        decoration: const InputDecoration(
-                          hintText: 'Enter student name',
-                          prefixIcon: Icon(Icons.person_outline),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+      resizeToAvoidBottomInset: true,
+      appBar: AppBar(title: const Text('Begin Observation')),
+      body: user == null
+          ? const Center(child: Text('Please sign in to record observations.'))
+          : SafeArea(
+        child: CustomScrollView(
+          // one primary scroll surface for the entire page
+          primary: true,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          slivers: [
+            // Use a SliverPadding so our bottom space grows when keyboard shows
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                16 +
+                    MediaQuery
+                        .of(context)
+                        .viewPadding
+                        .bottom +
+                    MediaQuery
+                        .of(context)
+                        .viewInsets
+                        .bottom,
               ),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate.fixed([
+                  // === paste your Cards here in the SAME order as before ===
 
-              const SizedBox(height: 12),
-
-              // ---------- Behavior Type ----------
-              Card(
-                elevation: 0,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Behavior Type', style: TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _behaviorTypes.map((t) {
-                          final selected = _selectedBehaviorType == t;
-                          return ChoiceChip(
-                            label: Text(t),
-                            selected: selected,
-                            onSelected: (_) => setState(() => _selectedBehaviorType = t),
-                          );
-                        }).toList(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // ---------- Intensity ----------
-              Card(
-                elevation: 0,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  // ---------- STUDENT PICKER ----------
+                  Card(
+                    elevation: 0,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Intensity', style: TextStyle(fontWeight: FontWeight.bold)),
-                          Text(_intensity.round().toString()),
-                        ],
-                      ),
-                      Slider(
-                        value: _intensity,
-                        min: 1,
-                        max: 5,
-                        divisions: 4,
-                        label: _intensity.round().toString(),
-                        onChanged: (v) => setState(() => _intensity = v),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // ---------- ABC Context (optional) ----------
-              Card(
-                elevation: 0,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Context (Optional)', style: TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        initialValue: _antecedent,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Antecedent',
-                          prefixIcon: Icon(Icons.history_toggle_off),
-                        ),
-                        items: _antecedents
-                            .map((a) => DropdownMenuItem(value: a, child: Text(a)))
-                            .toList(),
-                        onChanged: (v) => setState(() => _antecedent = v),
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: _consequence,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Consequence',
-                          prefixIcon: Icon(Icons.outbond_outlined),
-                        ),
-                        items: _consequences
-                            .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                            .toList(),
-                        onChanged: (v) => setState(() => _consequence = v),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // ---------- Location & Notes (optional) ----------
-              Card(
-                elevation: 0,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Details (Optional)', style: TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _locationCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Location (e.g., Classroom A, Cafeteria)',
-                          prefixIcon: Icon(Icons.location_on_outlined),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _notesCtrl,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'Notes (optional narrative)',
-                          prefixIcon: Icon(Icons.notes_outlined),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // ---------- Actions: Quick Log or Timer ----------
-              Card(
-                elevation: 0,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Record', style: TextStyle(fontWeight: FontWeight.bold)),
-                          if (_isTiming)
-                            Text('Timing: $_elapsedLabel', style: const TextStyle(fontFeatures: [])),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          // Quick Log creates an instantaneous event (no duration)
-                          ElevatedButton.icon(
-                            onPressed: _quickLog,
-                            icon: const Icon(Icons.add_task),
-                            label: const Text('Quick Log'),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Student', style: TextStyle(
+                                  fontWeight: FontWeight.bold)),
+                              OutlinedButton.icon(
+                                onPressed: _showAddStudentDialog,
+                                icon: const Icon(Icons.person_add_alt_1),
+                                label: const Text('Add Student'),
+                              ),
+                            ],
                           ),
-                          // Timer toggles between Start and Stop
-                          FilledButton.icon(
-                            onPressed: _toggleTimer,
-                            icon: Icon(_isTiming ? Icons.stop_circle_outlined : Icons.play_circle_outline),
-                            label: Text(_isTiming ? 'Stop Timer & Save' : 'Start Timer'),
+                          const SizedBox(height: 12),
+                          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                            stream: _studentsStream(user.uid),
+                            builder: (context, snap) {
+                              if (snap.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const LinearProgressIndicator(
+                                    minHeight: 2);
+                              }
+                              if (snap.hasError) {
+                                // Force-wrap the error text so a long URL can't break layout
+                                return SelectableText(
+                                  'Error loading students: ${snap.error}',
+                                  style: Theme
+                                      .of(context)
+                                      .textTheme
+                                      .bodyMedium,
+                                );
+                              }
+                              final docs = snap.data?.docs ?? const [];
+                              if (docs.isEmpty) {
+                                return const Text(
+                                    'No students yet. Add one to start logging.');
+                              }
+
+                              final validIds = docs.map((d) => d.id).toSet();
+                              final current = validIds.contains(
+                                  _selectedStudentId)
+                                  ? _selectedStudentId
+                                  : null;
+
+                              final entries = docs.map((d) {
+                                final name = d.data()['name'] as String? ??
+                                    '(Unnamed)';
+                                return DropdownMenuEntry<String>(
+                                    value: d.id, label: name);
+                              }).toList();
+
+                              return DropdownMenu<String>(
+                                initialSelection: current,
+                                dropdownMenuEntries: entries,
+                                leadingIcon: const Icon(Icons.person_outline),
+                                hintText: 'Select a student',
+                                onSelected: (id) {
+                                  if (id == null) return;
+                                  setState(() {
+                                    _selectedStudentId = id;
+                                    final d = docs.firstWhere((e) =>
+                                    e.id == id);
+                                    _selectedStudentName =
+                                        (d.data()['name'] as String?) ?? '';
+                                  });
+                                },
+                              );
+                            },
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
 
-              const SizedBox(height: 32),
-            ],
-          ),
+                  const SizedBox(height: 12),
+
+                  // ---------- BEHAVIOR TYPE (Dropdown) ----------
+                  Card(
+                    elevation: 0,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Behavior Type',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          DropdownMenu<String>(
+                            initialSelection: _selectedBehaviorType,
+                            dropdownMenuEntries: _behaviorTypes
+                                .map((t) =>
+                                DropdownMenuEntry<String>(value: t, label: t))
+                                .toList(),
+                            leadingIcon: const Icon(Icons.category_outlined),
+                            hintText: 'Select behavior type',
+                            onSelected: (v) =>
+                                setState(() => _selectedBehaviorType = v),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ---------- CONTEXT (REQUIRED) ----------
+                  Card(
+                    elevation: 0,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Context (Required)',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          DropdownMenu<String>(
+                            initialSelection: _antecedent,
+                            dropdownMenuEntries: _antecedents
+                                .map((a) =>
+                                DropdownMenuEntry<String>(value: a, label: a))
+                                .toList(),
+                            leadingIcon: const Icon(Icons.history_toggle_off),
+                            hintText: 'Antecedent',
+                            onSelected: (v) => setState(() => _antecedent = v),
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownMenu<String>(
+                            initialSelection: _consequence,
+                            dropdownMenuEntries: _consequences
+                                .map((c) =>
+                                DropdownMenuEntry<String>(value: c, label: c))
+                                .toList(),
+                            leadingIcon: const Icon(Icons.outbond_outlined),
+                            hintText: 'Consequence',
+                            onSelected: (v) => setState(() => _consequence = v),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ---------- SEVERITY ----------
+                  Card(
+                    elevation: 0,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Severity',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          SegmentedButton<String>(
+                            segments: _severityLevels
+                                .map((s) =>
+                                ButtonSegment<String>(value: s, label: Text(s)))
+                                .toList(),
+                            selected: {_severity},
+                            onSelectionChanged: (set) =>
+                                setState(() => _severity = set.first),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ---------- DETAILS ----------
+                  Card(
+                    elevation: 0,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Details (Optional)',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _locationCtrl,
+                            textInputAction: TextInputAction.done,
+                            decoration: const InputDecoration(
+                              labelText: 'Location (e.g., Classroom A, Cafeteria)',
+                              prefixIcon: Icon(Icons.location_on_outlined),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _notesCtrl,
+                            maxLines: 3,
+                            textInputAction: TextInputAction.done,
+                            decoration: const InputDecoration(
+                              labelText: 'Notes (optional narrative)',
+                              prefixIcon: Icon(Icons.notes_outlined),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ---------- ACTIONS ----------
+                  Card(
+                    elevation: 0,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Record', style: TextStyle(
+                                  fontWeight: FontWeight.bold)),
+                              if (_isTiming) Text('Timing: $_elapsedLabel'),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: _quickLog,
+                                icon: const Icon(Icons.add_task),
+                                label: const Text('Quick Log'),
+                              ),
+                              FilledButton.icon(
+                                onPressed: _toggleTimer,
+                                icon: Icon(_isTiming
+                                    ? Icons.stop_circle_outlined
+                                    : Icons.play_circle_outline),
+                                label: Text(_isTiming
+                                    ? 'Stop Timer & Save'
+                                    : 'Start Timer'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ---------- RECENT EVENTS ----------
+                  Card(
+                    elevation: 0,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Recent Events',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                            stream: FirebaseFirestore.instance
+                                .collection('behavior_events')
+                                .where('uid', isEqualTo: user.uid)
+                                .orderBy('createdAt', descending: true)
+                                .limit(25)
+                                .snapshots(),
+                            builder: (context, snap) {
+                              if (snap.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const LinearProgressIndicator(
+                                    minHeight: 2);
+                              }
+                              if (snap.hasError) {
+                                return SelectableText(
+                                  'Error: ${snap.error}',
+                                  style: Theme
+                                      .of(context)
+                                      .textTheme
+                                      .bodyMedium,
+                                );
+                              }
+                              final docs = snap.data?.docs ?? const [];
+                              if (docs.isEmpty) {
+                                return const Text(
+                                    'No events yet. Your logs will appear here.');
+                              }
+                              return ListView.separated(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: docs.length,
+                                separatorBuilder: (context,
+                                    index) => const Divider(height: 1),
+                                itemBuilder: (context, i) {
+                                  final d = docs[i];
+                                  final m = d.data();
+                                  final student = (m['studentName'] as String?) ??
+                                      '(Unknown)';
+                                  final type = (m['behaviorType'] as String?) ??
+                                      '';
+                                  final severity = (m['severity'] as String?) ??
+                                      (() {
+                                        final x = m['intensity'] as int?;
+                                        if (x == null) return '';
+                                        if (x <= 1) return 'Mild';
+                                        if (x >= 5) return 'Severe';
+                                        return 'Moderate';
+                                      })();
+                                  final createdAt = m['createdAt'] as Timestamp?;
+                                  final duration = (m['durationSeconds'] as int?);
+                                  final subtitle = duration == null
+                                      ? 'Severity $severity • ${_formatWhen(
+                                      createdAt)}'
+                                      : 'Severity $severity • ${_formatWhen(
+                                      createdAt)} • ${duration}s';
+
+                                  return Dismissible(
+                                    key: ValueKey(d.id),
+                                    direction: DismissDirection.endToStart,
+                                    background: Container(
+                                      color: Colors.red.withValues(alpha: 0.1),
+                                      alignment: Alignment.centerRight,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16),
+                                      child: const Icon(Icons.delete_outline),
+                                    ),
+                                    confirmDismiss: (direction) async {
+                                      return await showDialog<bool>(
+                                        context: context,
+                                        builder: (dialogCtx) =>
+                                            AlertDialog(
+                                              title: const Text(
+                                                  'Delete event?'),
+                                              content: const Text(
+                                                  'This action cannot be undone.'),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator
+                                                          .of(dialogCtx)
+                                                          .pop(false),
+                                                  child: const Text('Cancel'),
+                                                ),
+                                                FilledButton(
+                                                  onPressed: () =>
+                                                      Navigator
+                                                          .of(dialogCtx)
+                                                          .pop(true),
+                                                  child: const Text('Delete'),
+                                                ),
+                                              ],
+                                            ),
+                                      ) ??
+                                          false;
+                                    },
+                                    onDismissed: (direction) async {
+                                      final messenger = ScaffoldMessenger.of(
+                                          context);
+                                      try {
+                                        await d.reference.delete();
+                                        messenger.showSnackBar(const SnackBar(
+                                            content: Text('Event deleted.')));
+                                      } catch (e) {
+                                        messenger.showSnackBar(SnackBar(
+                                            content: Text(
+                                                'Failed to delete: $e')));
+                                      }
+                                    },
+                                    child: ListTile(
+                                      leading: const Icon(
+                                          Icons.event_note_outlined),
+                                      title: Text(student),
+                                      subtitle: Text(subtitle),
+                                      trailing: Text(type),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+                ]),
+              ),
+            ),
+          ],
         ),
       ),
     );

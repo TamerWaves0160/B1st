@@ -39,15 +39,20 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
       appBar: AppBar(
         title: const Text('BehaviorFirst'),
         bottom: TabBar(
+          isScrollable: false,
           controller: _tabController,
-          isScrollable: true, // ← helps on smaller screens / large text scaling
+          labelPadding: EdgeInsets.zero,
+          indicatorSize: TabBarIndicatorSize.tab,
           tabs: const [
             Tab(text: 'Login / New User'),
             Tab(text: 'Features & Pricing'),
             Tab(text: 'Renni — AI Reports'),
           ],
         ),
-        actions: const [UserStatusBadge(), SizedBox(width: 12)],
+        actions: [
+          const UserStatusBadge(),
+          const SizedBox(width: 12),
+        ],
       ),
       body: TabBarView(
         controller: _tabController,
