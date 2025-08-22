@@ -1,0 +1,33 @@
+// BehaviorFirst — owner-only
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+
+    match /behavior_events/{docId} {
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.studentId is string
+        && request.resource.data.studentName is string
+        && request.resource.data.behaviorType is string
+        && request.resource.data.severity in ['Mild','Moderate','Severe']
+        && request.resource.data.intensity is int
+        && request.resource.data.intensity >= 1
+        && request.resource.data.intensity <= 5
+        && (!('antecedent'  in request.resource.data) || request.resource.data.antecedent  == null || request.resource.data.antecedent  is string)
+        && (!('consequence' in request.resource.data) || request.resource.data.consequence == null || request.resource.data.consequence is string)
+        && (!('location'    in request.resource.data) || request.resource.data.location    == null || request.resource.data.location    is string)
+        && (!('notes'       in request.resource.data) || request.resource.data.notes       == null || request.resource.data.notes       is string);
+      allow read, update, delete: if isOwner(resource.data.uid);
+    }
+
+    match /students/{sid} {
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.name is string;
+      allow read, update, delete: if isOwner(resource.data.ownerUid);
+    }
+  }
+}

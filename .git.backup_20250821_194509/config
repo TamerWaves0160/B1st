@@ -1,0 +1,19 @@
+[core]
+	repositoryformatversion = 0
+	filemode = false
+	bare = false
+	logallrefupdates = true
+	symlinks = false
+	ignorecase = true
+[remote "origin"]
+	url = https://github.com/TamerWaves0160/B1st.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "Main"]
+	remote = origin
+	merge = refs/heads/main
+[user]
+	name = John
+	email = johnj9070@gmail.com
+[branch "main"]
+	remote = origin
+	merge = refs/heads/main

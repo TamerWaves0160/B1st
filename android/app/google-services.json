@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "538557537127",
+    "project_id": "behaviorfirst-515f1",
+    "storage_bucket": "behaviorfirst-515f1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:538557537127:android:9c56e0ad57317f129badc2",
+        "android_client_info": {
+          "package_name": "com.spark.behaviorfirst"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAB2cGr78w4pfx2QMOEQU4jBvhgA22gu4M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

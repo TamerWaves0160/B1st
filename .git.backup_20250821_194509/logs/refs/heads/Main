@@ -1,0 +1,12 @@
+0000000000000000000000000000000000000000 0acc3cae8b221701dd1615690996c13990cae897 John Johnson <110772374+TamerWaves0160@users.noreply.github.com> 1754882691 -0500	commit (initial): Initial commit - login with firebase auth (web and android)
+0acc3cae8b221701dd1615690996c13990cae897 40347b8f84a4d830e06e11c822703afa2d4b4b53 John <johnj9070@gmail.com> 1755482240 -0500	commit: feat: added observation_page (log and timer), behavior type, intensity scale, ABC context, student input; fixed lints; congigured android firebase
+40347b8f84a4d830e06e11c822703afa2d4b4b53 79c142f8ffc8f18667e8e62f97f97f599fd04eea John <johnj9070@gmail.com> 1755482755 -0500	commit: chore(git): ignore Android build artifacts (.gradle, build/, local.properties)
+79c142f8ffc8f18667e8e62f97f97f599fd04eea 9ab8c2c175c57c929487695f45bdccea71c59901 John <johnj9070@gmail.com> 1755562304 -0500	commit: feat: fix nested repo
+9ab8c2c175c57c929487695f45bdccea71c59901 9ab8c2c175c57c929487695f45bdccea71c59901 John <johnj9070@gmail.com> 1755661563 -0500	Branch: renamed refs/heads/master to refs/heads/main
+9ab8c2c175c57c929487695f45bdccea71c59901 edbec1325c8d8038fc108b83d89b5847f11fe95a John <johnj9070@gmail.com> 1755661652 -0500	commit: changed layout, changed intensity to mild moderate and severe, made recording antecedent required
+edbec1325c8d8038fc108b83d89b5847f11fe95a 2d1940a069bda4378586a7607e2fa6e674cf5a2c John <johnj9070@gmail.com> 1755747448 -0500	commit: feat(observation): add report dataset fetch + chart preview scaffolding; fix context-after-await lints
+2d1940a069bda4378586a7607e2fa6e674cf5a2c 4194d3b7571999d7666028c588dcd9cef2578b05 John <johnj9070@gmail.com> 1755763073 -0500	commit: obs page stable; functions scaffold; console setup ready
+4194d3b7571999d7666028c588dcd9cef2578b05 1dc4eba7f3d00f3bf6c9308a6b7be4f1f1f46c24 John <johnj9070@gmail.com> 1755822402 -0500	commit: FBA/BIP: wired callable + typed model + validated PDF; report preview export; event aggregator; strict functions V2
+1dc4eba7f3d00f3bf6c9308a6b7be4f1f1f46c24 1dc4eba7f3d00f3bf6c9308a6b7be4f1f1f46c24 John <johnj9070@gmail.com> 1755822551 -0500	Branch: renamed refs/heads/main to refs/heads/main
+1dc4eba7f3d00f3bf6c9308a6b7be4f1f1f46c24 1dc4eba7f3d00f3bf6c9308a6b7be4f1f1f46c24 John <johnj9070@gmail.com> 1755822581 -0500	Branch: renamed refs/heads/main to refs/heads/Main
+1dc4eba7f3d00f3bf6c9308a6b7be4f1f1f46c24 f060388791f91f2967fbefba42f628eb935c4b43 John <johnj9070@gmail.com> 1755823293 -0500	commit: bootstrap: ensure local main has a commit
