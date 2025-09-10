@@ -10,6 +10,9 @@ class DraftResponse {
     final draft = FbaBipDraft.fromMap(_asMap(m['draft']));
     return DraftResponse(meta: meta, draft: draft);
   }
+
+  factory DraftResponse.fromJson(Map<String, dynamic> json) =>
+      DraftResponse.fromMap(json);
 }
 
 class FbaBipDraft {
