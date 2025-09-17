@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../widgets/hero_banner.dart';
 
 class FeaturesPricingTab extends StatelessWidget {
   const FeaturesPricingTab({super.key});
@@ -8,12 +7,16 @@ class FeaturesPricingTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
-      child: Column(
-        children: const [
-          HeroBanner(),
-          SizedBox(height: 16),
-          _PlaceholderCard(title: 'Features & Pricing — placeholder', body: 'We\'ll link the plan matrix and checkout later.'),
-        ],
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 700),
+          child: const Column(
+            children: [
+              SizedBox(height: 32),
+              _PlaceholderCard(title: 'Features & Pricing — placeholder'),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -21,21 +24,22 @@ class FeaturesPricingTab extends StatelessWidget {
 
 class _PlaceholderCard extends StatelessWidget {
   final String title;
-  final String body;
-  const _PlaceholderCard({required this.title, required this.body});
+  const _PlaceholderCard({required this.title});
 
   @override
   Widget build(BuildContext context) {
     return Card(
       elevation: 0,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(body),
+            Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),

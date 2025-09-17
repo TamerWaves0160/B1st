@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-// for AutofillHints
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/hero_banner.dart';
 import '../utils/form_validators.dart';
@@ -15,7 +14,6 @@ class _LoginNewUserTabState extends State<LoginNewUserTab> {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
-
 
   bool _isLogin = true;
   bool _busy = false;
@@ -55,14 +53,22 @@ class _LoginNewUserTabState extends State<LoginNewUserTab> {
 
     try {
       final email = _email.text.trim();
-      final pass  = _password.text;
+      final pass = _password.text;
 
       if (_isLogin) {
-        await FirebaseAuth.instance.signInWithEmailAndPassword(email: email, password: pass);
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: email,
+          password: pass,
+        );
         messenger.showSnackBar(const SnackBar(content: Text('Signed in.')));
       } else {
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: pass);
-        messenger.showSnackBar(const SnackBar(content: Text('Account created.')));
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: email,
+          password: pass,
+        );
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Account created.')),
+        );
       }
     } on FirebaseAuthException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(_friendlyAuthError(e))));
@@ -78,13 +84,17 @@ class _LoginNewUserTabState extends State<LoginNewUserTab> {
     final messenger = ScaffoldMessenger.of(context); // capture BEFORE await
 
     if (email.isEmpty) {
-      messenger.showSnackBar(const SnackBar(content: Text('Enter your email first.')));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Enter your email first.')),
+      );
       return;
     }
 
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      messenger.showSnackBar(const SnackBar(content: Text('Password reset email sent.')));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Password reset email sent.')),
+      );
     } on FirebaseAuthException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(_friendlyAuthError(e))));
     }
@@ -111,26 +121,71 @@ class _LoginNewUserTabState extends State<LoginNewUserTab> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            ChoiceChip(
-                              label: const Text('Login'),
-                              selected: _isLogin,
-                              onSelected: (v) => setState(() => _isLogin = true),
-                            ),
-                            const SizedBox(width: 8),
-                            ChoiceChip(
-                              label: const Text('Create Account'),
-                              selected: !_isLogin,
-                              onSelected: (v) => setState(() => _isLogin = false),
-                            ),
-                          ],
+                        // VISIBLE MODE TOGGLE - Very prominent for testing
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 24),
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.blue, width: 2),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () =>
+                                      setState(() => _isLogin = true),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _isLogin
+                                        ? Colors.blue
+                                        : Colors.white,
+                                    foregroundColor: _isLogin
+                                        ? Colors.white
+                                        : Colors.blue,
+                                    elevation: _isLogin ? 4 : 0,
+                                  ),
+                                  child: const Text(
+                                    'SIGN IN',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () =>
+                                      setState(() => _isLogin = false),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: !_isLogin
+                                        ? Colors.blue
+                                        : Colors.white,
+                                    foregroundColor: !_isLogin
+                                        ? Colors.white
+                                        : Colors.blue,
+                                    elevation: !_isLogin ? 4 : 0,
+                                  ),
+                                  child: const Text(
+                                    'CREATE ACCOUNT',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _email,
-                          autofillHints: const [AutofillHints.username, AutofillHints.email],
+                          autofillHints: const [
+                            AutofillHints.username,
+                            AutofillHints.email,
+                          ],
                           decoration: const InputDecoration(
                             labelText: 'Email',
                             prefixIcon: Icon(Icons.alternate_email),
@@ -148,9 +203,16 @@ class _LoginNewUserTabState extends State<LoginNewUserTab> {
                             labelText: 'Password',
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
-                              tooltip: _obscure ? 'Show password' : 'Hide password',
-                              icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-                              onPressed: () => setState(() => _obscure = !_obscure),
+                              tooltip: _obscure
+                                  ? 'Show password'
+                                  : 'Hide password',
+                              icon: Icon(
+                                _obscure
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
+                              onPressed: () =>
+                                  setState(() => _obscure = !_obscure),
                             ),
                           ),
                           validator: Validators.password,
@@ -171,10 +233,12 @@ class _LoginNewUserTabState extends State<LoginNewUserTab> {
                             padding: const EdgeInsets.symmetric(vertical: 12.0),
                             child: _busy
                                 ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
                                 : Text(_isLogin ? 'Sign In' : 'Create Account'),
                           ),
                         ),

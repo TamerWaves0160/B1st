@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'services/vertex_ai_service.dart';
 import 'pages/home_shell.dart';
 import 'pages/observation_page.dart';
 
@@ -28,6 +29,17 @@ Future<void> main() async {
     await Firebase.initializeApp();
   }
 
+  // Initialize Vertex AI service
+  try {
+    await VertexAIService.initialize();
+  } catch (e) {
+    if (kIsWeb) {
+      print(
+        'Vertex AI initialization failed (this is expected on first run): $e',
+      );
+    }
+  }
+
   runApp(const BehaviorFirstApp());
 }
 
@@ -44,9 +56,7 @@ class BehaviorFirstApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: const HomeShell(),
-      routes: {
-        '/observe': (context) => const ObservationPage(),
-      },
+      routes: {'/observe': (context) => const ObservationPage()},
     );
   }
 }

@@ -10,7 +10,9 @@ class AiClient {
   static final AiClient instance = AiClient._();
 
   // Functions in us-central1 per your setup
-  final FirebaseFunctions _fx = FirebaseFunctions.instanceFor(region: 'us-central1');
+  final FirebaseFunctions _fx = FirebaseFunctions.instanceFor(
+    region: 'us-central1',
+  );
 
   // ---------- Helpers ----------
   Map<String, dynamic> _asMap(Object? data) {
@@ -30,10 +32,11 @@ class AiClient {
     final map = _asMap(res.data);
     // Optional debug breadcrumbs
     try {
-      final meta = _asMap(map['meta']);
       final draft = _asMap(map['draft']);
       final m2 = _asMap(draft['meta']);
-      debugPrint('[AI] generateFbaBipDraftRaw engine=${m2['engine']} callId=${_asMap(_asMap(payload)['_meta'])['callId']}');
+      debugPrint(
+        '[AI] generateFbaBipDraftRaw engine=${m2['engine']} callId=${_asMap(_asMap(payload)['_meta'])['callId']}',
+      );
     } catch (_) {}
     return map;
   }
@@ -58,7 +61,8 @@ class AiClient {
     final callable = _fx.httpsCallable('recommendInterventions');
     final res = await callable({
       'query': query,
-      if (functionHint != null && functionHint.isNotEmpty) 'function': functionHint,
+      if (functionHint != null && functionHint.isNotEmpty)
+        'function': functionHint,
       'topK': topK,
     });
 

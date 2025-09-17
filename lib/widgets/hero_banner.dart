@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class HeroBanner extends StatelessWidget {
   const HeroBanner({super.key});
@@ -30,12 +31,26 @@ class HeroBanner extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () => Navigator.of(context).pushNamed('/observe'),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                    child: Text('Begin Observation'),
-                  ),
+                StreamBuilder<User?>(
+                  stream: FirebaseAuth.instance.authStateChanges(),
+                  builder: (context, snapshot) {
+                    final user = snapshot.data;
+                    if (user == null) {
+                      return const SizedBox.shrink(); // Hide button when not logged in
+                    }
+
+                    return ElevatedButton(
+                      onPressed: () =>
+                          Navigator.of(context).pushNamed('/observe'),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 16.0,
+                          vertical: 12.0,
+                        ),
+                        child: Text('Begin Observation'),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

@@ -275,4 +275,47 @@ export const generateFbaBipDraft = onCall(
     },
 );
 
+// Email notification for data export requests
+export const notifyDataRequest = onCall(
+    {cors: true},
+    async (request) => {
+      const {userEmail, requestType, dataFormat, timeframe} = request.data;
+
+      logger.info('📧 Data export request received:', {
+        userEmail,
+        requestType,
+        dataFormat,
+        timeframe,
+        timestamp: new Date().toISOString(),
+      });
+
+      // TODO: Add email service integration (SendGrid, Mailgun, etc.)
+      // For now, just log the notification
+      const notificationData = {
+        to: 'behaviorfirst@outlook.com',
+        subject: '🔔 New Data Export Request - BehaviorFirst',
+        body: `
+New data export request received:
+
+👤 User: ${userEmail}
+📋 Request Type: ${requestType}
+📄 Format: ${dataFormat}
+📅 Timeframe: ${timeframe}
+🕒 Submitted: ${new Date().toLocaleString()}
+
+Please process this request within 24-48 hours.
+Check Firebase Console: https://console.firebase.google.com/project/behaviorfirst-515f1/firestore/databases/-default-/data/~2Fdata_requests
+        `,
+      };
+
+      logger.info('📬 Email notification data:', notificationData);
+
+      return {
+        success: true,
+        message: 'Notification logged successfully',
+        timestamp: new Date().toISOString(),
+      };
+    },
+);
+
 export {recommendInterventions} from './interventions';

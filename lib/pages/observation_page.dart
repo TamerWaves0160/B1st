@@ -1,14 +1,7 @@
 // lib/pages/observation_page.dart
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:cloud_functions/cloud_functions.dart';
-import 'package:printing/printing.dart';
-
-import 'package:behaviorfirst/services/ai_client.dart';
-import 'package:behaviorfirst/models/fba_bip_draft.dart';
-import 'package:behaviorfirst/reports/report_pdf.dart';
-import 'package:behaviorfirst/adapters/fba_payload.dart';
-import 'package:behaviorfirst/services/event_aggregator.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ObservationPage extends StatefulWidget {
   const ObservationPage({super.key});
@@ -18,385 +11,641 @@ class ObservationPage extends StatefulWidget {
 }
 
 class _ObservationPageState extends State<ObservationPage> {
-  bool _busy = false;
-  String? _lastStatus;
+  final _formKey = GlobalKey<FormState>();
 
-  // Notes & smart hint
-  final TextEditingController _notes = TextEditingController();
-  bool _showHint = false;
-  Timer? _debounce;
+  // Controllers
+  final _studentNameController = TextEditingController();
+  final _studentAgeController = TextEditingController();
+  final _studentGradeController = TextEditingController();
+  final _antecedentsController = TextEditingController();
+  final _notesController = TextEditingController();
+  final _customBehaviorController = TextEditingController();
+  final _customConsequenceController = TextEditingController();
+
+  // Form state
+  bool _isNewStudent = true;
+  String? _selectedStudentId;
+  String? _selectedBehavior;
+  String _selectedIntensity = 'Mild';
+  bool _showCustomBehavior = false;
+  bool _showCustomConsequence = false;
+  bool _isLoading = false;
+  List<DocumentSnapshot> _existingStudents = [];
+
+  // Predefined behaviors
+  final List<String> _behaviors = [
+    'Aggression',
+    'Disruption',
+    'Noncompliance',
+    'Calling out',
+    'Elopement',
+    'Self-injury',
+    'Verbal outburst',
+    'Property destruction',
+    'Inappropriate touching',
+    'Repetitive behavior',
+    'Other (specify)',
+  ];
+
+  // Intensity levels
+  final List<String> _intensityLevels = ['Mild', 'Moderate', 'Severe'];
+
+  // Consequences (both positive and negative)
+  final List<String> _consequences = [
+    'Verbal redirection',
+    'Removal from activity',
+    'Loss of privilege',
+    'Time out',
+    'Physical escort',
+    'Office referral',
+    'Positive reinforcement given',
+    'Praise provided',
+    'Preferred activity offered',
+    'Break/sensory time',
+    'Ignored/no response',
+    'Natural consequence',
+    'Other (specify)',
+  ];
+
+  String _selectedConsequence = 'Verbal redirection';
 
   @override
   void initState() {
     super.initState();
-    _notes.addListener(_onNotesChanged);
+    _loadExistingStudents();
   }
 
   @override
   void dispose() {
-    _notes.removeListener(_onNotesChanged);
-    _debounce?.cancel();
-    _notes.dispose();
+    _studentNameController.dispose();
+    _studentAgeController.dispose();
+    _studentGradeController.dispose();
+    _antecedentsController.dispose();
+    _notesController.dispose();
+    _customBehaviorController.dispose();
+    _customConsequenceController.dispose();
     super.dispose();
   }
 
-  void _onNotesChanged() {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 600), () {
-      final t = _notes.text.trim().toLowerCase();
-      final looksBehavior = RegExp(
-        r'(calling out|noncompliance|aggression|elopement|disrupt|transition)',
-        caseSensitive: false,
-      ).hasMatch(t);
-      setState(() => _showHint = looksBehavior && t.length > 12);
-    });
-  }
-
-  // STEP 5: Ask teacher for mode + prompt before generation
-  Future<Map<String, String>?> _askForFbaBip() async {
-    String mode = 'BIP';
-    final c = TextEditingController();
-    return showDialog<Map<String, String>>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Generate FBA/BIP'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              initialValue: mode,
-              items: const [
-                DropdownMenuItem(value: 'FBA', child: Text('FBA (analysis-focused)')),
-                DropdownMenuItem(value: 'BIP', child: Text('BIP (plan-focused)')),
-              ],
-              onChanged: (v) => mode = v ?? 'BIP',
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: c,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                hintText: 'Briefly describe the need (optional)…',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, {'mode': mode, 'prompt': c.text.trim()}),
-            child: const Text('Generate'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Wrapper to show dialog, then call the generator
-  Future<void> _onGeneratePressed(String source) async {
-    final opts = await _askForFbaBip();
-    if (opts == null) return;
-    await _invokeGenerateDraft(source: source, mode: opts['mode'], prompt: opts['prompt']);
-  }
-
-  // STEP 3/5: Generate draft (now accepts optional mode/prompt)
-  Future<void> _invokeGenerateDraft({
-    required String source,
-    String? mode,       // 'FBA' | 'BIP'
-    String? prompt,     // teacher free text
-  }) async {
-    if (_busy) return;
-    setState(() {
-      _busy = true;
-      _lastStatus = 'Calling generateFbaBipDraft… ($source)';
-    });
-
-    final callId = DateTime.now().microsecondsSinceEpoch.toString();
-
+  Future<void> _loadExistingStudents() async {
     try {
-      // 1) Aggregate recent events (aggregator auto-picks student)
-      final stats = await EventAggregator.fetchAndAggregate();
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) return;
 
-      // 2) Compute severity shares (0–1) from counts
-      final severityTotal = stats.bySeverity.values.fold<int>(0, (a, b) => a + b);
-      final severityShare = <String, num>{};
-      if (severityTotal > 0) {
-        stats.bySeverity.forEach((k, v) {
-          severityShare[k] = v / severityTotal;
-        });
-      }
+      final snapshot = await FirebaseFirestore.instance
+          .collection('students')
+          .where(
+            'ownerUid',
+            isEqualTo: userId,
+          ) // Changed from userId to ownerUid
+          .get();
 
-      // 3) Build DTOs for callable payload
-      final datasetDto = FbaDatasetDTO(
-        studentName: stats.studentName,
-        studentId: stats.studentId,
-        from: stats.from,
-        to: stats.to,
-        totalEvents: stats.totalEvents,
-        totalDurationSeconds: stats.totalDurationSeconds,
-        bySeverity: stats.bySeverity,
-        byType: stats.byType,
-      );
-
-      final insightsDto = FbaInsightsDTO(
-        hypothesis: '—', // deterministic hypothesis can be swapped in later
-        rankedFunctions: const [],
-        severityShare: severityShare,
-        antecedentCounts: stats.antecedentCounts,
-        consequenceCounts: stats.consequenceCounts,
-      );
-
-      final planDto = FbaPlanDTO(
-        antecedent: const [],
-        teaching: const [],
-        consequence: const [],
-        reinforcement: const [],
-      );
-
-      final envelope = buildFbaEnvelope(
-        meta: {
-          'source': source,
-          'callId': callId,
-          'clientTs': DateTime.now().toIso8601String(),
-          'platform': 'flutter',
-        },
-        dataset: datasetDto,
-        insights: insightsDto,
-        plan: planDto,
-      );
-
-      // NEW: pass teacher options if provided
-      if (mode != null && mode.isNotEmpty) envelope['mode'] = mode;
-      if (prompt != null && prompt.isNotEmpty) envelope['prompt'] = prompt;
-
-      debugPrint('[AI][$callId][$source] → envelope keys: ${envelope.keys.toList()}');
-
-      // 4) Call Functions (typed), then render PDF
-      final DraftResponse resp =
-      await AiClient.instance.generateFbaBipDraftTyped(payload: envelope);
-
-      debugPrint('[AI][$callId][$source] ← engine=${resp.draft.meta.engine}, student=${resp.draft.student.name}, events=${resp.draft.summary.totalEvents}');
-
-      final bytes = await buildFbaBipPdf(resp.draft);
-      await Printing.layoutPdf(onLayout: (_) async => bytes);
-
-      if (!mounted) return;
-      setState(() => _lastStatus = 'PDF ready ($source).');
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Draft generated → PDF preview')));
-    } on FirebaseFunctionsException catch (e, st) {
-      debugPrint('[AI][ERR][$callId][$source] code=${e.code}, msg=${e.message}, details=${e.details}');
-      debugPrintStack(label: '[AI][ERR][$callId][$source]', stackTrace: st);
-      if (!mounted) return;
-      final msg = switch (e.code) {
-        'not-found' => 'NOT_FOUND: name/region mismatch or not deployed.',
-        'unauthenticated' => 'Unauthenticated: sign in first.',
-        'permission-denied' => '403: App Check/IAM/Rules.',
-        'invalid-argument' => 'Invalid argument: server expects dataset/insights/plan.',
-        _ => 'Callable error: ${e.code}',
-      };
-      setState(() => _lastStatus = msg);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-    } on StateError catch (e, st) {
-      debugPrint('[AI][ERR][$callId][$source] $e');
-      debugPrintStack(label: '[AI][ERR][$callId][$source]', stackTrace: st);
-      if (!mounted) return;
-      setState(() => _lastStatus = 'Not signed in. Please authenticate.');
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Not signed in.')));
-    } catch (e, st) {
-      debugPrint('[AI][ERR][$callId][$source] $e');
-      debugPrintStack(label: '[AI][ERR][$callId][$source]', stackTrace: st);
-      if (mounted) {
-        setState(() => _lastStatus = 'Unexpected error. See console.');
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Unexpected error.')));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      setState(() {
+        _existingStudents = snapshot.docs;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error loading students: $e')));
     }
   }
 
-  // STEP 3/4: Intervention KB — bottom sheet
-  Future<void> _openInterventionRequest() async {
-    final controller = TextEditingController(text: _lastBehaviorPhraseFromNotes() ?? '');
-    List<Map<String, dynamic>> results = [];
-    bool busy = false;
+  Future<void> _saveObservation() async {
+    if (!_formKey.currentState!.validate()) return;
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 16, right: 16, top: 16,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-        ),
-        child: StatefulBuilder(
-          builder: (ctx, setSt) {
-            Future<void> run() async {
-              setSt(() => busy = true);
-              try {
-                results = await AiClient.instance.recommendInterventions(
-                  query: controller.text.trim(),
-                  topK: 5,
-                );
-              } finally {
-                setSt(() => busy = false);
-              }
-            }
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('User not authenticated')));
+      return;
+    }
 
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Describe the behavior or context'),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: controller,
-                  minLines: 1,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    hintText: 'e.g., calling out during whole-group instruction',
-                    border: OutlineInputBorder(),
-                  ),
-                  onSubmitted: (_) => run(),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    FilledButton(
-                      onPressed: busy ? null : run,
-                      child: const Text('Find Interventions'),
-                    ),
-                    if (busy)
-                      const Padding(
-                        padding: EdgeInsets.only(left: 12),
-                        child: SizedBox(
-                          width: 16, height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (results.isNotEmpty)
-                  Flexible(
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: results.length,
-                      itemBuilder: (_, i) {
-                        final it = results[i];
-                        final steps = ((it['steps'] as List?) ?? const []).join('\n• ');
-                        return Card(
-                          child: ListTile(
-                            title: Text(it['title'] ?? ''),
-                            subtitle: Text([
-                              if ((it['rationale'] ?? '').toString().isNotEmpty)
-                                'Rationale: ${it['rationale']}',
-                              if (steps.isNotEmpty) 'Steps:\n• $steps',
-                            ].join('\n')),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
-      ),
-    );
+    setState(() => _isLoading = true);
+
+    try {
+      // Prepare student data
+      Map<String, dynamic> studentData;
+
+      if (_isNewStudent) {
+        // Create new student - using ownerUid to match rules
+        studentData = {
+          'name': _studentNameController.text.trim(),
+          'age': int.tryParse(_studentAgeController.text) ?? 0,
+          'grade': _studentGradeController.text.trim(),
+          'ownerUid': userId, // Changed from userId to ownerUid
+          'createdAt': FieldValue.serverTimestamp(),
+        };
+
+        final studentDoc = await FirebaseFirestore.instance
+            .collection('students')
+            .add(studentData);
+        _selectedStudentId = studentDoc.id;
+      } else {
+        // Use existing student
+        final selectedStudent = _existingStudents.firstWhere(
+          (doc) => doc.id == _selectedStudentId,
+        );
+        studentData = selectedStudent.data() as Map<String, dynamic>;
+      }
+
+      // Determine behavior
+      String finalBehavior = _selectedBehavior ?? '';
+      if (_selectedBehavior == 'Other (specify)' && _showCustomBehavior) {
+        finalBehavior = _customBehaviorController.text.trim();
+      }
+
+      // Determine consequence
+      String finalConsequence = _selectedConsequence;
+      if (_selectedConsequence == 'Other (specify)' && _showCustomConsequence) {
+        finalConsequence = _customConsequenceController.text.trim();
+      }
+
+      // Map severity to intensity number (1-5 scale)
+      int intensityNumber;
+      switch (_selectedIntensity) {
+        case 'Mild':
+          intensityNumber = 2;
+          break;
+        case 'Moderate':
+          intensityNumber = 3;
+          break;
+        case 'Severe':
+          intensityNumber = 5;
+          break;
+        default:
+          intensityNumber = 3;
+      }
+
+      // Create observation record - exactly matching your Firestore rules
+      final observationData = <String, dynamic>{
+        'uid': userId,
+        'studentId': _selectedStudentId!,
+        'studentName': studentData['name'] as String,
+        'behaviorType': finalBehavior,
+        'severity': _selectedIntensity,
+        'intensity': intensityNumber,
+      };
+
+      // Add optional fields only if they have content
+      final antecedentText = _antecedentsController.text.trim();
+      if (antecedentText.isNotEmpty) {
+        observationData['antecedent'] = antecedentText;
+      }
+
+      // Add consequence if selected
+      if (finalConsequence.isNotEmpty) {
+        observationData['consequence'] = finalConsequence;
+      }
+
+      final notesText = _notesController.text.trim();
+      if (notesText.isNotEmpty) {
+        observationData['notes'] = notesText;
+      }
+
+      // Don't add timestamp or date as they're not in the rules
+
+      await FirebaseFirestore.instance
+          .collection('behavior_events') // Using your existing collection name
+          .add(observationData);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Observation saved successfully!')),
+      );
+
+      // Clear form
+      _clearForm();
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error saving observation: $e')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
-  // Pull last sentence-ish from notes to seed the query
-  String? _lastBehaviorPhraseFromNotes() {
-    final t = _notes.text.trim();
-    if (t.isEmpty) return null;
-    final parts = t.split(RegExp(r'[.!?]')).map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-    return parts.isNotEmpty ? parts.last : t;
+  void _clearForm() {
+    _studentNameController.clear();
+    _studentAgeController.clear();
+    _studentGradeController.clear();
+    _antecedentsController.clear();
+    _notesController.clear();
+    _customBehaviorController.clear();
+    setState(() {
+      _isNewStudent = true;
+      _selectedStudentId = null;
+      _selectedBehavior = null;
+      _selectedIntensity = 'Mild';
+      _showCustomBehavior = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Observation'),
-        actions: [
-          // STEP 3: Intervention request button
-          IconButton(
-            tooltip: 'Intervention request',
-            icon: const Icon(Icons.lightbulb_outline),
-            onPressed: _busy ? null : _openInterventionRequest,
-          ),
-          // STEP 5: Generate (opens mode/prompt dialog, then calls)
-          IconButton(
-            tooltip: 'Generate FBA/BIP draft',
-            icon: const Icon(Icons.science_outlined),
-            onPressed: _busy ? null : () => _onGeneratePressed('appbar'),
-          ),
-        ],
+        title: const Text('Behavior Observation'),
+        backgroundColor: const Color(0xFF2E7D32),
+        foregroundColor: Colors.white,
       ),
-      body: AbsorbPointer(
-        absorbing: _busy,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Use the lightbulb to request interventions. '
-                        'Use the beaker to generate an FBA/BIP draft from recent observations.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // STEP 4: Notes field with smart hint
-                  Stack(
-                    alignment: Alignment.centerRight,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Student Selection Section
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      TextField(
-                        controller: _notes,
-                        maxLines: 4,
-                        decoration: const InputDecoration(
-                          labelText: 'Notes',
-                          hintText: 'Type observations… (e.g., calling out during whole-group)',
-                          border: OutlineInputBorder(),
+                      const Text(
+                        'Student Information',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      if (_showHint)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: InkWell(
-                            onTap: _busy ? null : _openInterventionRequest,
-                            child: const Icon(Icons.lightbulb, color: Colors.amber),
+                      const SizedBox(height: 16),
+
+                      // New vs Existing Student Toggle
+                      Row(
+                        children: [
+                          Expanded(
+                            child: RadioListTile<bool>(
+                              title: const Text('New Student'),
+                              value: true,
+                              groupValue: _isNewStudent,
+                              onChanged: (value) {
+                                setState(() => _isNewStudent = value!);
+                              },
+                            ),
                           ),
+                          Expanded(
+                            child: RadioListTile<bool>(
+                              title: const Text('Existing Student'),
+                              value: false,
+                              groupValue: _isNewStudent,
+                              onChanged: (value) {
+                                setState(() => _isNewStudent = value!);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      if (_isNewStudent) ...[
+                        // New Student Form
+                        TextFormField(
+                          controller: _studentNameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Student Name *',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Student name is required';
+                            }
+                            return null;
+                          },
                         ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _studentAgeController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Age',
+                                  border: OutlineInputBorder(),
+                                ),
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _studentGradeController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Grade',
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else ...[
+                        // Existing Student Dropdown
+                        DropdownButtonFormField<String>(
+                          value: _selectedStudentId,
+                          decoration: const InputDecoration(
+                            labelText: 'Select Student *',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: _existingStudents.map((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            return DropdownMenuItem<String>(
+                              value: doc.id,
+                              child: Text(
+                                '${data['name']} (Age: ${data['age']}, Grade: ${data['grade']})',
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() => _selectedStudentId = value);
+                          },
+                          validator: (value) {
+                            if (value == null) {
+                              return 'Please select a student';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
                     ],
                   ),
-
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: _busy ? null : () => _onGeneratePressed('body'),
-                    icon: const Icon(Icons.science_outlined),
-                    label: const Text('Generate FBA/BIP Draft'),
-                  ),
-
-                  if (_busy) ...[
-                    const SizedBox(height: 24),
-                    const CircularProgressIndicator(),
-                    const SizedBox(height: 8),
-                    const Text('Working…'),
-                  ],
-                  if (_lastStatus != null) ...[
-                    const SizedBox(height: 16),
-                    Text(_lastStatus!, textAlign: TextAlign.center),
-                  ],
-                ],
+                ),
               ),
-            ),
+
+              const SizedBox(height: 16),
+
+              // Behavior Selection Section
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Behavior Details',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Behavior Dropdown
+                      DropdownButtonFormField<String>(
+                        value: _selectedBehavior,
+                        decoration: const InputDecoration(
+                          labelText: 'Select Behavior *',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _behaviors.map((behavior) {
+                          return DropdownMenuItem<String>(
+                            value: behavior,
+                            child: Text(behavior),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedBehavior = value;
+                            _showCustomBehavior = value == 'Other (specify)';
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null) {
+                            return 'Please select a behavior';
+                          }
+                          return null;
+                        },
+                      ),
+
+                      // Custom Behavior Field (if "Other" selected)
+                      if (_showCustomBehavior) ...[
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _customBehaviorController,
+                          decoration: const InputDecoration(
+                            labelText: 'Specify Behavior *',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (value) {
+                            if (_showCustomBehavior &&
+                                (value == null || value.trim().isEmpty)) {
+                              return 'Please specify the behavior';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
+
+                      const SizedBox(height: 16),
+
+                      // Intensity Selection
+                      const Text(
+                        'Behavior Intensity *',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: _intensityLevels.map((intensity) {
+                          return Expanded(
+                            child: RadioListTile<String>(
+                              title: Text(intensity),
+                              value: intensity,
+                              groupValue: _selectedIntensity,
+                              onChanged: (value) {
+                                setState(() => _selectedIntensity = value!);
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Antecedents Section
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Antecedents',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _antecedentsController,
+                        decoration: const InputDecoration(
+                          labelText: 'What happened before the behavior? *',
+                          hintText:
+                              'Describe the events, triggers, or circumstances that occurred before the behavior...',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 3,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Antecedents are required';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Consequences Section
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Consequences',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Consequence Dropdown
+                      DropdownButtonFormField<String>(
+                        value: _selectedConsequence,
+                        decoration: const InputDecoration(
+                          labelText: 'What happened after the behavior? *',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _consequences.map((consequence) {
+                          return DropdownMenuItem<String>(
+                            value: consequence,
+                            child: Text(consequence),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedConsequence = value!;
+                            _showCustomConsequence = value == 'Other (specify)';
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null) {
+                            return 'Please select a consequence';
+                          }
+                          return null;
+                        },
+                      ),
+
+                      // Custom Consequence Field (if "Other" selected)
+                      if (_showCustomConsequence) ...[
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _customConsequenceController,
+                          decoration: const InputDecoration(
+                            labelText: 'Specify Consequence *',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (value) {
+                            if (_showCustomConsequence &&
+                                (value == null || value.trim().isEmpty)) {
+                              return 'Please specify the consequence';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Notes Section
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Additional Notes',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Text(
+                        '(Optional)',
+                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _notesController,
+                        decoration: const InputDecoration(
+                          labelText:
+                              'Additional observations, context, or notes',
+                          hintText:
+                              'Any additional details you want to record...',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 3,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Save Button
+              ElevatedButton(
+                onPressed: _isLoading ? null : _saveObservation,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E7D32),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: _isLoading
+                    ? const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Text('Saving Observation...'),
+                        ],
+                      )
+                    : const Text(
+                        'Log Observation',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+              ),
+            ],
           ),
         ),
       ),

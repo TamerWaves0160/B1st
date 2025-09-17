@@ -1,4 +1,4 @@
-// BehaviorFirst — owner-only
+// BehaviorFirst — owner-only (simplified)
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -9,17 +9,11 @@ service cloud.firestore {
     match /behavior_events/{docId} {
       allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.studentId is string
-        && request.resource.data.studentName is string
-        && request.resource.data.behaviorType is string
+        && request.resource.data.keys().hasAll(['uid', 'studentId', 'studentName', 'behaviorType', 'severity', 'intensity'])
         && request.resource.data.severity in ['Mild','Moderate','Severe']
         && request.resource.data.intensity is int
         && request.resource.data.intensity >= 1
-        && request.resource.data.intensity <= 5
-        && (!('antecedent'  in request.resource.data) || request.resource.data.antecedent  == null || request.resource.data.antecedent  is string)
-        && (!('consequence' in request.resource.data) || request.resource.data.consequence == null || request.resource.data.consequence is string)
-        && (!('location'    in request.resource.data) || request.resource.data.location    == null || request.resource.data.location    is string)
-        && (!('notes'       in request.resource.data) || request.resource.data.notes       == null || request.resource.data.notes       is string);
+        && request.resource.data.intensity <= 5;
       allow read, update, delete: if isOwner(resource.data.uid);
     }
 
@@ -28,6 +22,24 @@ service cloud.firestore {
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.name is string;
       allow read, update, delete: if isOwner(resource.data.ownerUid);
+    }
+
+    match /ai_reports/{reportId} {
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.reportType in ['FBA', 'BIP']
+        && request.resource.data.studentId is string
+        && request.resource.data.studentName is string;
+      allow read, update, delete: if isOwner(resource.data.ownerUid);
+    }
+
+    match /data_requests/{requestId} {
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.userEmail is string
+        && request.resource.data.dataFormat is string
+        && request.resource.data.timeframe is string;
+      allow read, update, delete: if isOwner(resource.data.userId);
     }
   }
 }
