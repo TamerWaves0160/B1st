@@ -319,3 +319,7 @@ Check Firebase Console: https://console.firebase.google.com/project/behaviorfirs
 );
 
 export {recommendInterventions} from './interventions';
+export {generateInterventions, generateComprehensiveAnalysis} from './vertex-ai';
+export {populateFirestore} from './populate-firestore';
+export {generateInterventionEmbeddings, testEmbeddingSimilarity} from './generate-embeddings';
+export {checkEmbeddingsStatus} from './check-embeddings';

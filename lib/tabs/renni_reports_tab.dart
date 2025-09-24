@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../services/ai_report_service.dart';
-import '../services/vertex_ai_service.dart';
-import '../models/ai_report_models.dart';
 
 class RenniReportsTab extends StatefulWidget {
   const RenniReportsTab({super.key});
@@ -301,63 +300,100 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
     try {
       if (kDebugMode) {
         print(
-          '🔍 Starting Vertex AI call for: ${_interventionController.text.trim()}',
+          '🔍 Calling Firebase Function for: ${_interventionController.text.trim()}',
         );
       }
 
-      final result = await VertexAIService.generateInterventionRecommendations(
-        _interventionController.text.trim(),
-      );
+      // Use advanced AI system with embeddings + LLM
+      final callable = FirebaseFunctions.instanceFor(
+        region: 'us-central1',
+      ).httpsCallable('generateComprehensiveAnalysis');
+
+      final result = await callable.call({
+        'behaviorDescription': _interventionController.text.trim(),
+        'includeDetailedAnalysis': true,
+        // Add context for better AI analysis
+        'ageGroup': 'elementary', // TODO: Make this selectable in UI
+        'setting': 'classroom', // TODO: Make this selectable in UI
+      });
+
+      final data = result.data as Map<String, dynamic>;
+
+      // Extract the rich AI analysis
+      final comprehensiveAnalysis =
+          data['comprehensiveAnalysis'] as String? ?? '';
+      final behaviorFunction = data['behaviorFunction'] as String? ?? '';
+      final recommendedInterventions =
+          data['recommendedInterventions'] as List? ?? [];
+      final analysisMethod = data['analysisMethod'] as String? ?? 'AI Analysis';
+      final metadata = data['metadata'] as Map<String, dynamic>? ?? {};
+
+      // Format the response for display
+      String formattedResponse = '';
+
+      if (behaviorFunction.isNotEmpty) {
+        formattedResponse +=
+            '**BEHAVIOR FUNCTION ANALYSIS:**\n$behaviorFunction\n\n';
+      }
+
+      if (comprehensiveAnalysis.isNotEmpty) {
+        formattedResponse +=
+            '**COMPREHENSIVE ANALYSIS:**\n$comprehensiveAnalysis\n\n';
+      }
+
+      if (recommendedInterventions.isNotEmpty) {
+        formattedResponse += '**TOP RECOMMENDATIONS:**\n';
+        for (int i = 0; i < recommendedInterventions.length; i++) {
+          final intervention =
+              recommendedInterventions[i] as Map<String, dynamic>;
+          final name =
+              intervention['name'] as String? ?? 'Intervention ${i + 1}';
+          final description = intervention['description'] as String? ?? '';
+          final similarity = intervention['similarity'] as double? ?? 0.0;
+
+          formattedResponse +=
+              '${i + 1}. **$name** (${(similarity * 100).round()}% match)\n';
+          if (description.isNotEmpty) {
+            formattedResponse += '   $description\n';
+          }
+          formattedResponse += '\n';
+        }
+      }
+
+      final matchCount = metadata['semanticMatches'] as int? ?? 0;
+      final totalChecked = metadata['totalInterventionsChecked'] as int? ?? 0;
+      final confidenceText =
+          'Generated using $analysisMethod - analyzed $totalChecked interventions, found $matchCount semantic matches';
 
       setState(() {
-        _suggestedIntervention = result;
-        _confidence = 'Generated using AI-powered analysis';
+        _suggestedIntervention = formattedResponse.isNotEmpty
+            ? formattedResponse
+            : 'No specific recommendations generated.';
+        _confidence = confidenceText;
         _isAnalyzingIntervention = false;
       });
     } catch (e) {
       if (kDebugMode) {
-        print('💥 Vertex AI failed with error: $e');
+        print('💥 Advanced AI analysis failed with error: $e');
       }
 
-      // Fallback to pattern matching
+      // Show error message instead of fallback
       setState(() {
-        _suggestedIntervention = _generateFallbackIntervention(
-          _interventionController.text.trim(),
-        );
+        _suggestedIntervention = '''**AI Analysis Temporarily Unavailable**
+
+We encountered an issue with the advanced AI analysis system. This could be due to:
+• Authentication requirements (please sign in)
+• Temporary service interruption
+• Network connectivity issues
+
+Please try again in a moment or contact support if the issue persists.
+
+Error details: ${e.toString()}''';
         _confidence =
-            'Generated using behavioral analysis patterns (Premium AI features coming soon)';
+            'Advanced AI system temporarily unavailable - please try again';
         _isAnalyzingIntervention = false;
       });
     }
-  }
-
-  String _generateFallbackIntervention(String behavior) {
-    // Simple pattern matching for fallback
-    final lowerBehavior = behavior.toLowerCase();
-
-    if (lowerBehavior.contains('calling out') ||
-        lowerBehavior.contains('blurting')) {
-      return '''• Implement a raise-hand signal system
-• Use visual cues for taking turns
-• Provide wait time before calling on students
-• Consider a private signal to remind the student
-• Praise appropriate hand-raising behavior''';
-    }
-
-    if (lowerBehavior.contains('out of seat') ||
-        lowerBehavior.contains('wandering')) {
-      return '''• Create clear movement boundaries
-• Provide designated movement breaks
-• Use visual markers for seat location
-• Implement a movement request system
-• Consider sensory needs (fidget tools)''';
-    }
-
-    return '''• Clearly define expected behavior
-• Provide consistent positive reinforcement
-• Implement logical consequences
-• Consider environmental modifications
-• Consult with behavioral specialist if needed''';
   }
 
   // Smart Lightbulb Functionality
@@ -720,34 +756,6 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _viewSavedReport(FBABIPReport report) {
-    setState(() {
-      _generatedReport = report.content;
-      _selectedReportType = report.reportType;
-    });
-
-    // Scroll to the generated report
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (context.mounted) {
-        Scrollable.ensureVisible(
-          context,
-          duration: const Duration(milliseconds: 500),
-          curve: Curves.easeInOut,
-        );
-      }
-    });
-  }
-
-  void _exportReport(FBABIPReport report) {
-    // TODO: Implement PDF export
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('PDF export feature coming soon!'),
-        duration: Duration(seconds: 2),
       ),
     );
   }

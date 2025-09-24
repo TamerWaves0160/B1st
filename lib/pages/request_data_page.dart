@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -102,7 +103,9 @@ Best regards,
           'timeframe': _selectedTimeframe,
         });
       } catch (e) {
-        print('Failed to send notification: $e');
+        if (kDebugMode) {
+          debugPrint('Failed to send notification: $e');
+        }
         // Don't fail the whole request if notification fails
       }
 

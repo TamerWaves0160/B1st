@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:googleapis_auth/auth_io.dart';
@@ -18,16 +17,14 @@ class VertexAIService {
       final credentials = ServiceAccountCredentials.fromJson(credentialsJson);
 
       // Create authenticated client with proper scopes
-      final scopes = [
-        'https://www.googleapis.com/auth/cloud-platform',
-        'https://www.googleapis.com/auth/cloud-platform.read-only',
-      ];
+      final scopes = ['https://www.googleapis.com/auth/cloud-platform'];
       _authClient = await clientViaServiceAccount(credentials, scopes);
 
       if (kDebugMode) {
-        print(
-          '✅ Vertex AI service initialized successfully with service account',
-        );
+        print('✅ Vertex AI service initialized successfully');
+        print('📧 Service Account Email: ${credentials.email}');
+        print('🔑 Project ID: $_projectId');
+        print('📍 Location: $_location');
       }
     } catch (e) {
       if (kDebugMode) {
@@ -40,19 +37,15 @@ class VertexAIService {
   /// Load service account credentials
   static Future<Map<String, dynamic>> _loadCredentials() async {
     try {
-      if (kIsWeb) {
-        // For web, load from assets
-        final String response = await rootBundle.loadString(
-          'assets/credentials/behaviorfirst-515f1-87e4804bb9f1.json',
-        );
-        return json.decode(response);
-      } else {
-        // For mobile/desktop, load from file
-        final file = File('credentials/behaviorfirst-515f1-87e4804bb9f1.json');
-        final contents = await file.readAsString();
-        return json.decode(contents);
-      }
+      // Always load from assets for consistency across platforms
+      final String response = await rootBundle.loadString(
+        'assets/credentials/behaviorfirst-515f1-87e4804bb9f1.json',
+      );
+      return json.decode(response);
     } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to load credentials from assets: $e');
+      }
       throw Exception('Failed to load credentials: $e');
     }
   }
@@ -66,9 +59,9 @@ class VertexAIService {
     }
 
     try {
-      // Use the correct Vertex AI model name
+      // Use the updated Vertex AI Gemini model endpoint
       final url =
-          'https://$_location-aiplatform.googleapis.com/v1/projects/$_projectId/locations/$_location/publishers/google/models/gemini-1.0-pro:generateContent';
+          'https://$_location-aiplatform.googleapis.com/v1/projects/$_projectId/locations/$_location/publishers/google/models/gemini-1.5-flash:generateContent';
 
       final requestBody = {
         'contents': [
@@ -80,15 +73,26 @@ class VertexAIService {
         ],
         'generationConfig': {
           'temperature': 0.7,
-          'maxOutputTokens': 1024,
-          'topP': 0.8,
+          'maxOutputTokens': 2048,
+          'topP': 0.9,
           'topK': 40,
         },
+        'safetySettings': [
+          {
+            'category': 'HARM_CATEGORY_HATE_SPEECH',
+            'threshold': 'BLOCK_MEDIUM_AND_ABOVE',
+          },
+          {
+            'category': 'HARM_CATEGORY_DANGEROUS_CONTENT',
+            'threshold': 'BLOCK_MEDIUM_AND_ABOVE',
+          },
+        ],
       };
 
       if (kDebugMode) {
-        print('🚀 Calling Vertex AI...');
+        print('🚀 Calling Vertex AI Gemini 1.5 Flash...');
         print('URL: $url');
+        print('Project: $_projectId, Location: $_location');
       }
 
       final response = await _authClient!.post(
@@ -117,6 +121,19 @@ class VertexAIService {
             return content.trim();
           }
         }
+
+        // If we get here, the response format was unexpected
+        if (kDebugMode) {
+          print('⚠️ Unexpected response format from Vertex AI');
+          print('Response data: $responseData');
+        }
+      }
+
+      // Detailed error logging
+      if (kDebugMode) {
+        print('❌ Vertex AI API Error:');
+        print('Status Code: ${response.statusCode}');
+        print('Response Body: ${response.body}');
       }
 
       throw Exception(
