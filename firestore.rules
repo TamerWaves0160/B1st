@@ -24,13 +24,13 @@ service cloud.firestore {
       allow read, update, delete: if isOwner(resource.data.ownerUid);
     }
 
-    match /ai_reports/{reportId} {
-      allow create: if signedIn()
-        && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.reportType in ['FBA', 'BIP']
-        && request.resource.data.studentId is string
-        && request.resource.data.studentName is string;
-      allow read, update, delete: if isOwner(resource.data.ownerUid);
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      // Allow users to manage their own AI reports
+      match /ai_reports/{reportId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     match /data_requests/{requestId} {

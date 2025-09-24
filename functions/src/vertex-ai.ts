@@ -184,9 +184,17 @@ function formatInterventionRecommendations(analysis: {
 export const generateComprehensiveAnalysis = onCall(
     {region: 'us-central1', timeoutSeconds: 120, cors: true},
     async (request) => {
+      // Immediately log the invocation
+      logger.info('generateComprehensiveAnalysis invoked.', {
+        auth: request.auth,
+        data: request.data,
+      });
+
       const uid = request.auth?.uid;
-      if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
-      logger.info('generateComprehensiveAnalysis called', {uid});
+      if (!uid) {
+        logger.error('Authentication failed: No UID provided.');
+        throw new HttpsError('unauthenticated', 'Sign in required.');
+      }
 
       const {
         behaviorDescription,
@@ -197,39 +205,50 @@ export const generateComprehensiveAnalysis = onCall(
       } = request.data;
 
       if (!behaviorDescription || typeof behaviorDescription !== 'string') {
+        logger.error('Invalid argument: behaviorDescription is missing or not a string.', {
+          requestData: request.data,
+        });
         throw new HttpsError('invalid-argument', 'behaviorDescription is required');
       }
 
       try {
+        logger.info('Starting comprehensive analysis process...');
         // Step 1: Use embeddings to find relevant interventions
         const embeddingsService = new EmbeddingsService();
         const llmService = new LLMService();
 
         // Get all interventions with embeddings
+        logger.info('Fetching interventions from Firestore...');
         const interventionsSnapshot = await db.collection('interventions').get();
         const allInterventions = interventionsSnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         })) as any[];
+        logger.info(`Found ${allInterventions.length} total interventions.`);
 
         const interventionsWithEmbeddings = allInterventions.filter((intervention) =>
           intervention.embedding && Array.isArray(intervention.embedding),
         );
 
         if (interventionsWithEmbeddings.length === 0) {
+          logger.error('Precondition Failed: No interventions with embeddings found.');
           throw new HttpsError('failed-precondition', 'No interventions with embeddings found. Run generateInterventionEmbeddings first.');
         }
+        logger.info(`Found ${interventionsWithEmbeddings.length} interventions with embeddings.`);
 
         // Generate behavior embedding
+        logger.info('Generating embedding for behavior description...');
         const behaviorEmbedding = await embeddingsService.generateEmbedding(behaviorDescription);
 
         // Find similar interventions
+        logger.info('Finding similar interventions using embeddings...');
         const similarInterventions = EmbeddingsService.findSimilarInterventions(
             behaviorDescription,
             behaviorEmbedding,
             interventionsWithEmbeddings,
             5, // Top 5
         );
+        logger.info(`Found ${similarInterventions.length} similar interventions.`);
 
         // Get full intervention details for LLM
         const recommendedInterventions = similarInterventions.map((match: any) => {
@@ -244,6 +263,7 @@ export const generateComprehensiveAnalysis = onCall(
         let behaviorFunction = '';
 
         if (includeDetailedAnalysis) {
+          logger.info('Generating detailed analysis with LLM...');
           // Step 2: Generate comprehensive analysis using LLM
           llmAnalysis = await llmService.generateInterventionAnalysis(
               behaviorDescription,
@@ -252,10 +272,13 @@ export const generateComprehensiveAnalysis = onCall(
           );
 
           // Step 3: Get quick behavior function analysis
+          logger.info('Analyzing behavior function with LLM...');
           behaviorFunction = await llmService.analyzeBehaviorFunction(behaviorDescription);
+          logger.info('LLM analysis complete.');
         }
 
         // Apply filters for age group and setting
+        logger.info('Applying filters to recommended interventions...');
         let filteredInterventions = recommendedInterventions;
         if (ageGroup) {
           filteredInterventions = filteredInterventions.filter((intervention: any) =>
@@ -267,6 +290,7 @@ export const generateComprehensiveAnalysis = onCall(
             intervention.settings?.includes(setting),
           );
         }
+        logger.info(`Filtered interventions count: ${filteredInterventions.length}`);
 
         const result = {
           success: true,
@@ -288,15 +312,19 @@ export const generateComprehensiveAnalysis = onCall(
           },
         };
 
-        logger.info('Comprehensive analysis completed', {
+        logger.info('Comprehensive analysis process completed successfully.', {
           recommendationCount: result.recommendedInterventions.length,
           analysisLength: llmAnalysis.length,
         });
 
         return result;
-      } catch (error) {
-        logger.error('Error in comprehensive analysis:', error);
-        throw new HttpsError('internal', `Analysis failed: ${error}`);
+      } catch (error: any) {
+        logger.error('FATAL Error in comprehensive analysis:', {
+          errorMessage: error.message,
+          errorStack: error.stack,
+          errorDetails: error.details,
+        });
+        throw new HttpsError('internal', `Analysis failed: ${error.message}`);
       }
     },
 );

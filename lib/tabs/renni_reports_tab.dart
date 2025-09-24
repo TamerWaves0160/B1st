@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import '../services/ai_report_service.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 class RenniReportsTab extends StatefulWidget {
   const RenniReportsTab({super.key});
@@ -211,9 +212,9 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Text(
-                      _suggestedIntervention!,
-                      style: Theme.of(context).textTheme.bodyMedium,
+                    MarkdownBody(
+                      data: _suggestedIntervention!,
+                      styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)),
                     ),
                     if (_confidence != null) ...[
                       const SizedBox(height: 8),
@@ -319,55 +320,38 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
 
       final data = result.data as Map<String, dynamic>;
 
-      // Extract the rich AI analysis
+      // The comprehensiveAnalysis from the LLM is a complete, formatted report.
+      // We should display it directly and not try to re-assemble it.
       final comprehensiveAnalysis =
           data['comprehensiveAnalysis'] as String? ?? '';
-      final behaviorFunction = data['behaviorFunction'] as String? ?? '';
-      final recommendedInterventions =
-          data['recommendedInterventions'] as List? ?? [];
+
       final analysisMethod = data['analysisMethod'] as String? ?? 'AI Analysis';
       final metadata = data['metadata'] as Map<String, dynamic>? ?? {};
-
-      // Format the response for display
-      String formattedResponse = '';
-
-      if (behaviorFunction.isNotEmpty) {
-        formattedResponse +=
-            '**BEHAVIOR FUNCTION ANALYSIS:**\n$behaviorFunction\n\n';
-      }
-
-      if (comprehensiveAnalysis.isNotEmpty) {
-        formattedResponse +=
-            '**COMPREHENSIVE ANALYSIS:**\n$comprehensiveAnalysis\n\n';
-      }
-
-      if (recommendedInterventions.isNotEmpty) {
-        formattedResponse += '**TOP RECOMMENDATIONS:**\n';
-        for (int i = 0; i < recommendedInterventions.length; i++) {
-          final intervention =
-              recommendedInterventions[i] as Map<String, dynamic>;
-          final name =
-              intervention['name'] as String? ?? 'Intervention ${i + 1}';
-          final description = intervention['description'] as String? ?? '';
-          final similarity = intervention['similarity'] as double? ?? 0.0;
-
-          formattedResponse +=
-              '${i + 1}. **$name** (${(similarity * 100).round()}% match)\n';
-          if (description.isNotEmpty) {
-            formattedResponse += '   $description\n';
-          }
-          formattedResponse += '\n';
-        }
-      }
 
       final matchCount = metadata['semanticMatches'] as int? ?? 0;
       final totalChecked = metadata['totalInterventionsChecked'] as int? ?? 0;
       final confidenceText =
           'Generated using $analysisMethod - analyzed $totalChecked interventions, found $matchCount semantic matches';
 
+      // Save the report to Firestore for history
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId != null && comprehensiveAnalysis.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .collection('ai_reports')
+            .add({
+          'behaviorDescription': _interventionController.text.trim(),
+          'reportContent': comprehensiveAnalysis,
+          'timestamp': FieldValue.serverTimestamp(),
+          'analysisMethod': analysisMethod,
+          'metadata': metadata,
+        });
+      }
+
       setState(() {
-        _suggestedIntervention = formattedResponse.isNotEmpty
-            ? formattedResponse
+        _suggestedIntervention = comprehensiveAnalysis.isNotEmpty
+            ? comprehensiveAnalysis
             : 'No specific recommendations generated.';
         _confidence = confidenceText;
         _isAnalyzingIntervention = false;
@@ -452,6 +436,116 @@ Error details: ${e.toString()}''';
   void _getInstantRecommendation() {
     // Use the same Vertex AI generation as the main button
     _generateQuickIntervention();
+  }
+
+  Widget _buildSavedReports() {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Center(
+            child: Text('Sign in to view saved reports.'),
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.history,
+                  color: Theme.of(context).colorScheme.tertiary,
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Previously Generated Reports',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(userId)
+                  .collection('ai_reports')
+                  .orderBy('timestamp', descending: true)
+                  .limit(10)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(
+                    child: Text('No saved AI reports found.'),
+                  );
+                }
+
+                final reports = snapshot.data!.docs;
+
+                return ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: reports.length,
+                  itemBuilder: (context, index) {
+                    final report = reports[index];
+                    final reportData = report.data() as Map<String, dynamic>;
+                    final timestamp = (reportData['timestamp'] as Timestamp?)?.toDate();
+                    final behaviorDescription = reportData['behaviorDescription'] as String?;
+
+                    return ListTile(
+                      leading: const Icon(Icons.article),
+                      title: Text(
+                        behaviorDescription ?? 'AI Generated Report',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        timestamp != null
+                            ? '${timestamp.toLocal().month}/${timestamp.toLocal().day}/${timestamp.toLocal().year}'
+                            : 'No date',
+                      ),
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Saved Report'),
+                            content: Scrollbar(
+                              child: SingleChildScrollView(
+                                child: MarkdownBody(
+                                  data: reportData['reportContent'] as String? ?? 'No content.',
+                                ),
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: const Text('Close'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildStudentSelector() {
@@ -715,48 +809,5 @@ Error details: ${e.toString()}''';
         ),
       );
     }
-  }
-
-  Widget _buildSavedReports() {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId == null) return const SizedBox();
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.folder,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Previously Generated Reports',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // Temporarily simplified for testing - replace with StreamBuilder later
-            Container(
-              padding: const EdgeInsets.all(32),
-              child: const Center(
-                child: Text(
-                  'AI Reports History (temporarily disabled for testing)',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey, fontSize: 16),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
