@@ -204,6 +204,84 @@ class MockStudentData {
           ),
         ],
       ),
+
+      StudentProfile(
+        id: 'student_006',
+        name: 'Liam Chen',
+        age: 10,
+        grade: '5th Grade',
+        diagnosis: 'Dyslexia',
+        behaviorConcerns: [
+          'Avoids reading aloud in class',
+          'Shows frustration during writing tasks',
+          'Distracts peers to avoid starting assignments',
+        ],
+        strengths: [
+          'Strong verbal reasoning and storytelling',
+          'Excels in hands-on science experiments',
+          'Good at mathematical concepts',
+        ],
+        currentInterventions: [
+          'Access to text-to-speech software',
+          'Use of graphic organizers for writing',
+          'Breaks during long reading passages',
+        ],
+        behaviorHistory: [
+          BehaviorIncident(
+            date: DateTime.now().subtract(Duration(days: 11)),
+            behavior: 'Ripped up worksheet after 10 minutes of writing',
+            antecedent: 'Given a one-page writing prompt',
+            consequence: 'Allowed to dictate the rest of the story to a teacher',
+            setting: 'Language Arts class',
+          ),
+          BehaviorIncident(
+            date: DateTime.now().subtract(Duration(days: 4)),
+            behavior: 'Pretended to be sick to avoid reading his turn aloud',
+            antecedent: 'Round-robin reading in social studies',
+            consequence: 'Was not forced to read, but had to read it later with a specialist',
+            setting: 'Social Studies class',
+          ),
+        ],
+      ),
+
+      StudentProfile(
+        id: 'student_007',
+        name: 'Sophia Davis',
+        age: 16,
+        grade: '11th Grade',
+        diagnosis: 'Social Anxiety',
+        behaviorConcerns: [
+          'Does not participate in class discussions',
+          'Avoids group work, preferring to work alone',
+          'Shows physical signs of stress (e.g., shaking) when asked to present',
+        ],
+        strengths: [
+          'Excellent writer and observer',
+          'Highly dependable and turns in quality work',
+          'Thrives in quiet, structured environments',
+        ],
+        currentInterventions: [
+          'Option to submit written responses instead of speaking',
+          'Paired with a trusted peer for group activities',
+          'Advance notice before being called on in class',
+        ],
+        behaviorHistory: [
+          BehaviorIncident(
+            date: DateTime.now().subtract(Duration(days: 14)),
+            behavior: 'Remained silent and looked down when asked a direct question',
+            antecedent: 'Teacher asked for her opinion during a class discussion',
+            consequence: 'Teacher moved on to another student to reduce pressure',
+            setting: 'History class',
+          ),
+          BehaviorIncident(
+            date: DateTime.now().subtract(Duration(days: 3)),
+            behavior: 'Asked to go to the bathroom during group project assignments',
+            antecedent: 'Teacher announced students would be forming groups',
+            consequence: 'Allowed to work on the project alone with modified requirements',
+            setting: 'Science lab',
+          ),
+        ],
+      ),
     ];
   }
 
