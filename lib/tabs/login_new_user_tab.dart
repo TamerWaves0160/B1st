@@ -129,7 +129,7 @@ class _LoginNewUserTabState extends State<LoginNewUserTab> {
                           decoration: BoxDecoration(
                             color: Colors.grey[200],
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.blue, width: 2),
+                            border: Border.all(color: Colors.green, width: 2),
                           ),
                           child: Row(
                             children: [
@@ -139,11 +139,11 @@ class _LoginNewUserTabState extends State<LoginNewUserTab> {
                                       setState(() => _isLogin = true),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: _isLogin
-                                        ? Colors.blue
+                                        ? Colors.green
                                         : Colors.white,
                                     foregroundColor: _isLogin
                                         ? Colors.white
-                                        : Colors.blue,
+                                        : Colors.green,
                                     elevation: _isLogin ? 4 : 0,
                                   ),
                                   child: const Text(
@@ -161,11 +161,11 @@ class _LoginNewUserTabState extends State<LoginNewUserTab> {
                                       setState(() => _isLogin = false),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: !_isLogin
-                                        ? Colors.blue
+                                        ? Colors.green
                                         : Colors.white,
                                     foregroundColor: !_isLogin
                                         ? Colors.white
-                                        : Colors.blue,
+                                        : Colors.green,
                                     elevation: !_isLogin ? 4 : 0,
                                   ),
                                   child: const Text(
