@@ -43,6 +43,8 @@ Future<void> main() async {
     }
   }
 
+  // Temporarily disable debug setup to speed up app launch
+  /*
   // In debug mode, populate Firestore with intervention data if needed
   if (kDebugMode && kIsWeb) {
     try {
@@ -68,6 +70,7 @@ Future<void> main() async {
       debugPrint('ℹ️ Setup skipped or failed: $e');
     }
   }
+  */
 
   runApp(const BehaviorFirstApp());
 }

@@ -169,12 +169,6 @@ class FirestoreTestHelper {
             'name': 'Alex',
             'age': 8,
             'grade': '3rd Grade',
-            'diagnosis': 'ADHD',
-            'strengths': ['Creative', 'Helpful to peers', 'Good reader'],
-            'behaviorConcerns': [
-              'Difficulty staying seated',
-              'Distractible during math',
-            ],
           };
 
       if (kDebugMode) {

@@ -183,7 +183,7 @@ class _LandingTabState extends State<LandingTab> {
                                   color: Colors.grey[200],
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                    color: Colors.blue,
+                                    color: const Color(0xFF2E7D32),
                                     width: 2,
                                   ),
                                 ),
@@ -204,11 +204,11 @@ class _LandingTabState extends State<LandingTab> {
                                               },
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: _isLogin
-                                              ? Colors.blue
+                                              ? const Color(0xFF2E7D32)
                                               : Colors.white,
                                           foregroundColor: _isLogin
                                               ? Colors.white
-                                              : Colors.blue,
+                                              : const Color(0xFF2E7D32),
                                           elevation: _isLogin ? 4 : 0,
                                         ),
                                         child: const Text(
@@ -237,11 +237,11 @@ class _LandingTabState extends State<LandingTab> {
                                               },
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: !_isLogin
-                                              ? Colors.blue
+                                              ? const Color(0xFF2E7D32)
                                               : Colors.white,
                                           foregroundColor: !_isLogin
                                               ? Colors.white
-                                              : Colors.blue,
+                                              : const Color(0xFF2E7D32),
                                           elevation: !_isLogin ? 4 : 0,
                                         ),
                                         child: const Text(

@@ -1,4 +1,5 @@
 // lib/pages/observation_page.dart
+import 'package:behaviorfirst/data/mock_student_data.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -21,6 +22,8 @@ class _ObservationPageState extends State<ObservationPage> {
   final _notesController = TextEditingController();
   final _customBehaviorController = TextEditingController();
   final _customConsequenceController = TextEditingController();
+  final _durationController = TextEditingController();
+  final _settingController = TextEditingController();
 
   // Form state
   bool _isNewStudent = true;
@@ -84,21 +87,15 @@ class _ObservationPageState extends State<ObservationPage> {
     _notesController.dispose();
     _customBehaviorController.dispose();
     _customConsequenceController.dispose();
+    _durationController.dispose();
+    _settingController.dispose();
     super.dispose();
   }
 
   Future<void> _loadExistingStudents() async {
     try {
-      final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId == null) return;
-
-      final snapshot = await FirebaseFirestore.instance
-          .collection('students')
-          .where(
-            'ownerUid',
-            isEqualTo: userId,
-          ) // Changed from userId to ownerUid
-          .get();
+      final snapshot =
+          await FirebaseFirestore.instance.collection('students').get();
 
       setState(() {
         _existingStudents = snapshot.docs;
@@ -124,96 +121,58 @@ class _ObservationPageState extends State<ObservationPage> {
     setState(() => _isLoading = true);
 
     try {
-      // Prepare student data
-      Map<String, dynamic> studentData;
-
-      if (_isNewStudent) {
-        // Create new student - using ownerUid to match rules
-        studentData = {
-          'name': _studentNameController.text.trim(),
-          'age': int.tryParse(_studentAgeController.text) ?? 0,
-          'grade': _studentGradeController.text.trim(),
-          'ownerUid': userId, // Changed from userId to ownerUid
-          'createdAt': FieldValue.serverTimestamp(),
-        };
-
-        final studentDoc = await FirebaseFirestore.instance
-            .collection('students')
-            .add(studentData);
-        _selectedStudentId = studentDoc.id;
-      } else {
-        // Use existing student
-        final selectedStudent = _existingStudents.firstWhere(
-          (doc) => doc.id == _selectedStudentId,
-        );
-        studentData = selectedStudent.data() as Map<String, dynamic>;
-      }
-
-      // Determine behavior
+      // Determine behavior and consequence first
       String finalBehavior = _selectedBehavior ?? '';
       if (_selectedBehavior == 'Other (specify)' && _showCustomBehavior) {
         finalBehavior = _customBehaviorController.text.trim();
       }
 
-      // Determine consequence
       String finalConsequence = _selectedConsequence;
       if (_selectedConsequence == 'Other (specify)' && _showCustomConsequence) {
         finalConsequence = _customConsequenceController.text.trim();
       }
 
-      // Map severity to intensity number (1-5 scale)
-      int intensityNumber;
-      switch (_selectedIntensity) {
-        case 'Mild':
-          intensityNumber = 2;
-          break;
-        case 'Moderate':
-          intensityNumber = 3;
-          break;
-        case 'Severe':
-          intensityNumber = 5;
-          break;
-        default:
-          intensityNumber = 3;
+      // Create the new incident object
+      final newIncident = BehaviorIncident(
+        date: DateTime.now(),
+        behavior: finalBehavior,
+        antecedent: _antecedentsController.text.trim(),
+        consequence: finalConsequence,
+        setting: _settingController.text.trim().isEmpty 
+            ? 'Not specified' 
+            : _settingController.text.trim(),
+        duration: int.tryParse(_durationController.text) ?? 0,
+      );
+
+      if (_isNewStudent) {
+        // Create a new student with the first observation already in their history
+        final studentData = {
+          'name': _studentNameController.text.trim(),
+          'age': int.tryParse(_studentAgeController.text) ?? 0,
+          'grade': _studentGradeController.text.trim(),
+          'ownerUid': userId,
+          'createdAt': FieldValue.serverTimestamp(),
+          'id': '',
+          'behaviorHistory': [newIncident.toJson()], // Add first incident
+        };
+        final studentDocRef = await FirebaseFirestore.instance
+            .collection('students')
+            .add(studentData);
+        await studentDocRef.update({'id': studentDocRef.id});
+      } else {
+        // Add the new incident to an existing student's history
+        final studentDocRef = FirebaseFirestore.instance
+            .collection('students')
+            .doc(_selectedStudentId);
+        await studentDocRef.update({
+          'behaviorHistory': FieldValue.arrayUnion([newIncident.toJson()])
+        });
       }
-
-      // Create observation record - exactly matching your Firestore rules
-      final observationData = <String, dynamic>{
-        'uid': userId,
-        'studentId': _selectedStudentId!,
-        'studentName': studentData['name'] as String,
-        'behaviorType': finalBehavior,
-        'severity': _selectedIntensity,
-        'intensity': intensityNumber,
-      };
-
-      // Add optional fields only if they have content
-      final antecedentText = _antecedentsController.text.trim();
-      if (antecedentText.isNotEmpty) {
-        observationData['antecedent'] = antecedentText;
-      }
-
-      // Add consequence if selected
-      if (finalConsequence.isNotEmpty) {
-        observationData['consequence'] = finalConsequence;
-      }
-
-      final notesText = _notesController.text.trim();
-      if (notesText.isNotEmpty) {
-        observationData['notes'] = notesText;
-      }
-
-      // Don't add timestamp or date as they're not in the rules
-
-      await FirebaseFirestore.instance
-          .collection('behavior_events') // Using your existing collection name
-          .add(observationData);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Observation saved successfully!')),
       );
 
-      // Clear form
       _clearForm();
     } catch (e) {
       ScaffoldMessenger.of(
@@ -231,6 +190,7 @@ class _ObservationPageState extends State<ObservationPage> {
     _antecedentsController.clear();
     _notesController.clear();
     _customBehaviorController.clear();
+    _durationController.clear();
     setState(() {
       _isNewStudent = true;
       _selectedStudentId = null;
@@ -352,7 +312,7 @@ class _ObservationPageState extends State<ObservationPage> {
                             return DropdownMenuItem<String>(
                               value: doc.id,
                               child: Text(
-                                '${data['name']} (Age: ${data['age']}, Grade: ${data['grade']})',
+                                '${data['name']}',
                               ),
                             );
                           }).toList(),
@@ -435,6 +395,26 @@ class _ObservationPageState extends State<ObservationPage> {
                           },
                         ),
                       ],
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _durationController,
+                        decoration: const InputDecoration(
+                          labelText: 'Duration (minutes)',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _settingController,
+                        decoration: const InputDecoration(
+                          labelText: 'Setting/Location',
+                          hintText: 'e.g., Classroom - math lesson, Cafeteria, Playground',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 1,
+                      ),
 
                       const SizedBox(height: 16),
 

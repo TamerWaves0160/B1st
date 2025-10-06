@@ -4,6 +4,7 @@ import '../tabs/landing_tab.dart';
 import '../tabs/dashboard_tab.dart';
 import '../tabs/features_pricing_tab.dart';
 import '../tabs/renni_reports_tab.dart';
+import '../tabs/visualizer_tab.dart';
 import '../widgets/user_status_badge.dart';
 import 'contact_us_page.dart';
 import 'request_data_page.dart';
@@ -23,7 +24,7 @@ class _HomeShellState extends State<HomeShell>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -55,6 +56,10 @@ class _HomeShellState extends State<HomeShell>
                   text: 'Renni — AI Reports',
                   icon: isLoggedIn ? null : const Icon(Icons.lock, size: 16),
                 ),
+                Tab(
+                  text: 'Visualizer',
+                  icon: isLoggedIn ? null : const Icon(Icons.lock, size: 16),
+                ),
               ],
             ),
             actions: [const UserStatusBadge(), const SizedBox(width: 12)],
@@ -67,6 +72,9 @@ class _HomeShellState extends State<HomeShell>
               isLoggedIn
                   ? const RenniReportsTab()
                   : _buildLoginRequired('AI Reports'),
+              isLoggedIn
+                  ? const VisualizerTab()
+                  : _buildLoginRequired('Visualizer'),
             ],
           ),
           bottomNavigationBar: BottomNavigationBar(

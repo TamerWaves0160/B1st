@@ -18,10 +18,7 @@ service cloud.firestore {
     }
 
     match /students/{sid} {
-      allow create: if signedIn()
-        && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.name is string;
-      allow read, update, delete: if isOwner(resource.data.ownerUid);
+      allow read, write: if signedIn();
     }
 
     match /users/{userId} {
