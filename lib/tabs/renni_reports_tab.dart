@@ -214,7 +214,9 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
                     const SizedBox(height: 12),
                     MarkdownBody(
                       data: _suggestedIntervention!,
-                      styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)),
+                      styleSheet: MarkdownStyleSheet.fromTheme(
+                        Theme.of(context),
+                      ),
                     ),
                     if (_confidence != null) ...[
                       const SizedBox(height: 8),
@@ -341,12 +343,12 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
             .doc(userId)
             .collection('ai_reports')
             .add({
-          'behaviorDescription': _interventionController.text.trim(),
-          'reportContent': comprehensiveAnalysis,
-          'timestamp': FieldValue.serverTimestamp(),
-          'analysisMethod': analysisMethod,
-          'metadata': metadata,
-        });
+              'behaviorDescription': _interventionController.text.trim(),
+              'reportContent': comprehensiveAnalysis,
+              'timestamp': FieldValue.serverTimestamp(),
+              'analysisMethod': analysisMethod,
+              'metadata': metadata,
+            });
       }
 
       setState(() {
@@ -444,9 +446,7 @@ Error details: ${e.toString()}''';
       return const Card(
         child: Padding(
           padding: EdgeInsets.all(24.0),
-          child: Center(
-            child: Text('Sign in to view saved reports.'),
-          ),
+          child: Center(child: Text('Sign in to view saved reports.')),
         ),
       );
     }
@@ -468,8 +468,8 @@ Error details: ${e.toString()}''';
                 Text(
                   'Previously Generated Reports',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
@@ -501,8 +501,10 @@ Error details: ${e.toString()}''';
                   itemBuilder: (context, index) {
                     final report = reports[index];
                     final reportData = report.data() as Map<String, dynamic>;
-                    final timestamp = (reportData['timestamp'] as Timestamp?)?.toDate();
-                    final behaviorDescription = reportData['behaviorDescription'] as String?;
+                    final timestamp = (reportData['timestamp'] as Timestamp?)
+                        ?.toDate();
+                    final behaviorDescription =
+                        reportData['behaviorDescription'] as String?;
 
                     return ListTile(
                       leading: const Icon(Icons.article),
@@ -524,7 +526,9 @@ Error details: ${e.toString()}''';
                             content: Scrollbar(
                               child: SingleChildScrollView(
                                 child: MarkdownBody(
-                                  data: reportData['reportContent'] as String? ?? 'No content.',
+                                  data:
+                                      reportData['reportContent'] as String? ??
+                                      'No content.',
                                 ),
                               ),
                             ),

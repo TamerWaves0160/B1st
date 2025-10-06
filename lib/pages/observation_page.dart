@@ -94,8 +94,9 @@ class _ObservationPageState extends State<ObservationPage> {
 
   Future<void> _loadExistingStudents() async {
     try {
-      final snapshot =
-          await FirebaseFirestore.instance.collection('students').get();
+      final snapshot = await FirebaseFirestore.instance
+          .collection('students')
+          .get();
 
       setState(() {
         _existingStudents = snapshot.docs;
@@ -138,8 +139,8 @@ class _ObservationPageState extends State<ObservationPage> {
         behavior: finalBehavior,
         antecedent: _antecedentsController.text.trim(),
         consequence: finalConsequence,
-        setting: _settingController.text.trim().isEmpty 
-            ? 'Not specified' 
+        setting: _settingController.text.trim().isEmpty
+            ? 'Not specified'
             : _settingController.text.trim(),
         duration: int.tryParse(_durationController.text) ?? 0,
       );
@@ -165,7 +166,7 @@ class _ObservationPageState extends State<ObservationPage> {
             .collection('students')
             .doc(_selectedStudentId);
         await studentDocRef.update({
-          'behaviorHistory': FieldValue.arrayUnion([newIncident.toJson()])
+          'behaviorHistory': FieldValue.arrayUnion([newIncident.toJson()]),
         });
       }
 
@@ -311,9 +312,7 @@ class _ObservationPageState extends State<ObservationPage> {
                             final data = doc.data() as Map<String, dynamic>;
                             return DropdownMenuItem<String>(
                               value: doc.id,
-                              child: Text(
-                                '${data['name']}',
-                              ),
+                              child: Text('${data['name']}'),
                             );
                           }).toList(),
                           onChanged: (value) {
@@ -410,7 +409,8 @@ class _ObservationPageState extends State<ObservationPage> {
                         controller: _settingController,
                         decoration: const InputDecoration(
                           labelText: 'Setting/Location',
-                          hintText: 'e.g., Classroom - math lesson, Cafeteria, Playground',
+                          hintText:
+                              'e.g., Classroom - math lesson, Cafeteria, Playground',
                           border: OutlineInputBorder(),
                         ),
                         maxLines: 1,

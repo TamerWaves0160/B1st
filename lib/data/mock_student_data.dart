@@ -147,7 +147,8 @@ class MockStudentData {
             date: DateTime.now().subtract(Duration(days: 11)),
             behavior: 'Ripped up worksheet after 10 minutes of writing',
             antecedent: 'Given a one-page writing prompt',
-            consequence: 'Allowed to dictate the rest of the story to a teacher',
+            consequence:
+                'Allowed to dictate the rest of the story to a teacher',
             setting: 'Language Arts class',
             duration: 3,
           ),
@@ -155,7 +156,8 @@ class MockStudentData {
             date: DateTime.now().subtract(Duration(days: 4)),
             behavior: 'Pretended to be sick to avoid reading his turn aloud',
             antecedent: 'Round-robin reading in social studies',
-            consequence: 'Was not forced to read, but had to read it later with a specialist',
+            consequence:
+                'Was not forced to read, but had to read it later with a specialist',
             setting: 'Social Studies class',
             duration: 5,
           ),
@@ -170,17 +172,22 @@ class MockStudentData {
         behaviorHistory: [
           BehaviorIncident(
             date: DateTime.now().subtract(Duration(days: 14)),
-            behavior: 'Remained silent and looked down when asked a direct question',
-            antecedent: 'Teacher asked for her opinion during a class discussion',
-            consequence: 'Teacher moved on to another student to reduce pressure',
+            behavior:
+                'Remained silent and looked down when asked a direct question',
+            antecedent:
+                'Teacher asked for her opinion during a class discussion',
+            consequence:
+                'Teacher moved on to another student to reduce pressure',
             setting: 'History class',
             duration: 1,
           ),
           BehaviorIncident(
             date: DateTime.now().subtract(Duration(days: 3)),
-            behavior: 'Asked to go to the bathroom during group project assignments',
+            behavior:
+                'Asked to go to the bathroom during group project assignments',
             antecedent: 'Teacher announced students would be forming groups',
-            consequence: 'Allowed to work on the project alone with modified requirements',
+            consequence:
+                'Allowed to work on the project alone with modified requirements',
             setting: 'Science lab',
             duration: 5,
           ),
@@ -254,8 +261,9 @@ class StudentProfile {
       'name': name,
       'age': age,
       'grade': grade,
-      'behaviorHistory':
-          behaviorHistory.map((incident) => incident.toJson()).toList(),
+      'behaviorHistory': behaviorHistory
+          .map((incident) => incident.toJson())
+          .toList(),
     };
   }
 }
@@ -268,13 +276,14 @@ class BehaviorIncident {
   final String setting;
   final int? duration;
 
-  BehaviorIncident( 
-      {required this.date,
-      required this.behavior,
-      required this.antecedent,
-      required this.consequence,
-      required this.setting,
-      this.duration});
+  BehaviorIncident({
+    required this.date,
+    required this.behavior,
+    required this.antecedent,
+    required this.consequence,
+    required this.setting,
+    this.duration,
+  });
 
   factory BehaviorIncident.fromJson(Map<String, dynamic> json) {
     return BehaviorIncident(

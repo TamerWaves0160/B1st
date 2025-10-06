@@ -40,8 +40,11 @@ class _BehaviorChartState extends State<BehaviorChart> {
     final data = <String, double>{};
     for (var behavior in filteredBehaviors) {
       if (behavior.date != null) {
-        data.update(behavior.date!, (value) => value + behavior.duration,
-            ifAbsent: () => behavior.duration.toDouble());
+        data.update(
+          behavior.date!,
+          (value) => value + behavior.duration,
+          ifAbsent: () => behavior.duration.toDouble(),
+        );
       }
     }
     return data;
@@ -77,8 +80,9 @@ class _BehaviorChartState extends State<BehaviorChart> {
     final groupData = chartData.entries.map((entry) {
       final date = entry.key;
       final totalDuration = entry.value;
-      final behaviorsOnDate =
-          filteredBehaviors.where((b) => b.date == date).toList();
+      final behaviorsOnDate = filteredBehaviors
+          .where((b) => b.date == date)
+          .toList();
 
       final barRods = behaviorsOnDate.map((behavior) {
         return BarChartRodData(
@@ -94,11 +98,16 @@ class _BehaviorChartState extends State<BehaviorChart> {
           BarChartRodData(
             toY: totalDuration,
             rodStackItems: barRods
-                .map((rod) => BarChartRodStackItem(
-                    0, rod.toY, rod.color ?? Colors.transparent))
+                .map(
+                  (rod) => BarChartRodStackItem(
+                    0,
+                    rod.toY,
+                    rod.color ?? Colors.transparent,
+                  ),
+                )
                 .toList(),
             width: 16,
-          )
+          ),
         ],
       );
     }).toList();
@@ -109,20 +118,23 @@ class _BehaviorChartState extends State<BehaviorChart> {
         DropdownButton<String>(
           hint: const Text('Filter by behavior'),
           value: selectedType,
-          items: <String>[
-            'On-task',
-            'Off-task',
-            'Disruptive',
-            'Participating',
-            'Unresponsive',
-          ].map((type) {
-            return DropdownMenuItem<String>(
-              value: type,
-              child: Text(type),
-            );
-          }).toList()
-            ..insert(
-                0, const DropdownMenuItem(value: null, child: Text('All'))),
+          items:
+              <String>[
+                  'On-task',
+                  'Off-task',
+                  'Disruptive',
+                  'Participating',
+                  'Unresponsive',
+                ].map((type) {
+                  return DropdownMenuItem<String>(
+                    value: type,
+                    child: Text(type),
+                  );
+                }).toList()
+                ..insert(
+                  0,
+                  const DropdownMenuItem(value: null, child: Text('All')),
+                ),
           onChanged: (value) {
             setState(() {
               selectedType = value;
@@ -135,41 +147,45 @@ class _BehaviorChartState extends State<BehaviorChart> {
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              return Builder(builder: (context) {
-                return BarChart(
-                  BarChartData(
-                    alignment: BarChartAlignment.spaceAround,
-                    barGroups: groupData,
-                    titlesData: FlTitlesData(
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 40,
-                          getTitlesWidget: (value, meta) {
-                            return Text('${value.toInt()}m');
-                          },
+              return Builder(
+                builder: (context) {
+                  return BarChart(
+                    BarChartData(
+                      alignment: BarChartAlignment.spaceAround,
+                      barGroups: groupData,
+                      titlesData: FlTitlesData(
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 40,
+                            getTitlesWidget: (value, meta) {
+                              return Text('${value.toInt()}m');
+                            },
+                          ),
+                        ),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            getTitlesWidget: (value, meta) {
+                              final index = value.toInt();
+                              if (index >= 0 && index < chartData.keys.length) {
+                                return Text(chartData.keys.elementAt(index));
+                              }
+                              return const Text('');
+                            },
+                          ),
+                        ),
+                        topTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        rightTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
                         ),
                       ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          getTitlesWidget: (value, meta) {
-                            final index = value.toInt();
-                            if (index >= 0 && index < chartData.keys.length) {
-                              return Text(chartData.keys.elementAt(index));
-                            }
-                            return const Text('');
-                          },
-                        ),
-                      ),
-                      topTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false)),
-                      rightTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false)),
                     ),
-                  ),
-                );
-              });
+                  );
+                },
+              );
             },
           ),
         ),

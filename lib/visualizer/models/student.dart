@@ -5,9 +5,5 @@ class Student {
   final String name;
   final List<Behavior> behaviors;
 
-  Student({
-    required this.id,
-    required this.name,
-    required this.behaviors,
-  });
+  Student({required this.id, required this.name, required this.behaviors});
 }

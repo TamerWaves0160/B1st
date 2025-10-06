@@ -3,9 +3,5 @@ class Behavior {
   final String type;
   final int duration; // in minutes
 
-  Behavior({
-    required this.date,
-    required this.type,
-    required this.duration,
-  });
+  Behavior({required this.date, required this.type, required this.duration});
 }

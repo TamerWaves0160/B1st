@@ -164,12 +164,7 @@ class FirestoreTestHelper {
           'Student frequently gets out of their seat during math lessons, walks around the classroom, and has difficulty staying focused on worksheets';
 
       final testStudent =
-          studentInfo ??
-          {
-            'name': 'Alex',
-            'age': 8,
-            'grade': '3rd Grade',
-          };
+          studentInfo ?? {'name': 'Alex', 'age': 8, 'grade': '3rd Grade'};
 
       if (kDebugMode) {
         print('🧠 Testing comprehensive AI analysis...');

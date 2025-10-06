@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 // Helper function to categorize behavior based on description
 String categorizeBehavior(String behaviorDescription) {
   final description = behaviorDescription.toLowerCase();
-  
+
   // On-task behaviors (positive, engaged, working)
   if (description.contains('completed') ||
       description.contains('working') ||
@@ -20,7 +20,7 @@ String categorizeBehavior(String behaviorDescription) {
       description.contains('on task')) {
     return 'On-task';
   }
-  
+
   // Participating behaviors (active engagement)
   if (description.contains('raised hand') ||
       description.contains('asked question') ||
@@ -30,7 +30,7 @@ String categorizeBehavior(String behaviorDescription) {
       description.contains('volunteered')) {
     return 'Participating';
   }
-  
+
   // Disruptive behaviors (aggressive, loud, interfering)
   if (description.contains('hit') ||
       description.contains('threw') ||
@@ -47,7 +47,7 @@ String categorizeBehavior(String behaviorDescription) {
       description.contains('swore')) {
     return 'Disruptive';
   }
-  
+
   // Off-task behaviors (distracted, not following, wandering)
   if (description.contains('out of seat') ||
       description.contains('wandered') ||
@@ -64,7 +64,7 @@ String categorizeBehavior(String behaviorDescription) {
       description.contains('walked around')) {
     return 'Off-task';
   }
-  
+
   // Unresponsive behaviors (withdrawn, passive, non-participating)
   if (description.contains('silent') ||
       description.contains('head down') ||
@@ -77,7 +77,7 @@ String categorizeBehavior(String behaviorDescription) {
       description.contains('shut down')) {
     return 'Unresponsive';
   }
-  
+
   // Default to Off-task if no clear category
   return 'Off-task';
 }
