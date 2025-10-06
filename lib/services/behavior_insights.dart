@@ -5,21 +5,32 @@
 //   Deterministic analysis of a ReportDataset that extracts simple, auditable
 //   signals BEFORE any AI is involved. We compute:
 //     • counts by antecedent / consequence / type / severity
-//     • a lightweight score for likely behavior functions:
+//     • normalized severity share (Mild/Moderate/Severe as percentages)
+//     • a weighted score for likely behavior functions:
 //         - Escape / Avoid
 //         - Attention
 //         - Tangible / Access
 //         - Sensory / Automatic
-//     • a confidence value (0..1) and a short hypothesis string
+//     • ranked function scores with confidence (0..1)
+//     • a human-readable hypothesis string
+//
+// Scoring Algorithm:
+//   1. Keyword matching in antecedents (demand→Escape, denied→Tangible, etc.)
+//   2. Keyword matching in consequences (break→Escape, call home→Attention, etc.)
+//   3. Duration bias: avg duration ≥60s suggests Escape or Sensory
+//   4. Severity bias: high Severe percentage suggests Tangible or Escape
+//   5. Normalize scores to percentages and rank by confidence
 //
 // Why deterministic first?
 //   - Auditable and reproducible: same input → same output
 //   - Gives the AI a clean scaffold to elaborate (FBA, BIP, interventions)
 //   - Lets you test the pipeline without any model calls
+//   - Transparent logic that educators can understand and trust
 //
 // Notes
 //   - Heuristics below are intentionally conservative and transparent.
 //   - You can tune the keyword → function weights as you collect data.
+//   - Based on applied behavior analysis (ABA) best practices.
 // =============================================================
 
 import 'report_dataset.dart';
@@ -33,16 +44,20 @@ class BehaviorFunctionName {
 }
 
 class FunctionScore {
-  final String name;      // one of BehaviorFunctionName.*
-  final double score;     // raw score before normalization
-  final double share;     // score / sumScores (0..1), 0 if sum=0
-  const FunctionScore({required this.name, required this.score, required this.share});
+  final String name; // one of BehaviorFunctionName.*
+  final double score; // raw score before normalization
+  final double share; // score / sumScores (0..1), 0 if sum=0
+  const FunctionScore({
+    required this.name,
+    required this.score,
+    required this.share,
+  });
 }
 
 class BehaviorInsights {
   final Map<String, int> antecedentCounts;
   final Map<String, int> consequenceCounts;
-  final Map<String, int> typeCounts;       // copy of ds.byType
+  final Map<String, int> typeCounts; // copy of ds.byType
   final Map<String, double> severityShare; // Mild/Moderate/Severe → 0..1
 
   final List<FunctionScore> rankedFunctions; // sorted desc by share
@@ -61,7 +76,11 @@ class BehaviorInsights {
 
   FunctionScore get top => rankedFunctions.isNotEmpty
       ? rankedFunctions.first
-      : const FunctionScore(name: BehaviorFunctionName.escapeAvoid, score: 0, share: 0);
+      : const FunctionScore(
+          name: BehaviorFunctionName.escapeAvoid,
+          score: 0,
+          share: 0,
+        );
 }
 
 class BehaviorInsightsService {
@@ -83,8 +102,8 @@ class BehaviorInsightsService {
 
     // ---- 2) Severity share (0..1) ----
     final mild = (ds.bySeverity['Mild'] ?? 0).toDouble();
-    final mod  = (ds.bySeverity['Moderate'] ?? 0).toDouble();
-    final sev  = (ds.bySeverity['Severe'] ?? 0).toDouble();
+    final mod = (ds.bySeverity['Moderate'] ?? 0).toDouble();
+    final sev = (ds.bySeverity['Severe'] ?? 0).toDouble();
     final total = (mild + mod + sev);
     Map<String, double> sevShare;
     if (total <= 0) {
@@ -106,12 +125,15 @@ class BehaviorInsightsService {
       BehaviorFunctionName.sensoryAutomatic: 0,
     };
 
-    void add(String fn, double w) => scores.update(fn, (v) => v + w, ifAbsent: () => w);
+    void add(String fn, double w) =>
+        scores.update(fn, (v) => v + w, ifAbsent: () => w);
 
     // 3a) Antecedent keywords → function hints
     ac.forEach((k, n) {
       final key = k.toLowerCase();
-      if (key.contains('demand') || key.contains('task') || key.contains('transition')) {
+      if (key.contains('demand') ||
+          key.contains('task') ||
+          key.contains('transition')) {
         add(BehaviorFunctionName.escapeAvoid, 2.0 * n);
       }
       if (key.contains('attention')) {
@@ -141,15 +163,22 @@ class BehaviorInsightsService {
         add(BehaviorFunctionName.escapeAvoid, 0.5 * n); // weak signal
       }
       if (key.contains('call home')) {
-        add(BehaviorFunctionName.attention, 1.0 * n); // adult attention involved
+        add(
+          BehaviorFunctionName.attention,
+          1.0 * n,
+        ); // adult attention involved
       }
     });
 
     // 3c) Duration bias: long average durations often pair with escape or sensory
-    final avgDur = ds.totalEvents == 0 ? 0 : ds.totalDurationSeconds / ds.totalEvents;
+    final avgDur = ds.totalEvents == 0
+        ? 0
+        : ds.totalDurationSeconds / ds.totalEvents;
     if (avgDur >= 60) {
       // If unstructured settings present, nudge Sensory; else Escape.
-      final hasUnstructured = ac.keys.any((k) => k.toLowerCase().contains('unstructured'));
+      final hasUnstructured = ac.keys.any(
+        (k) => k.toLowerCase().contains('unstructured'),
+      );
       if (hasUnstructured) {
         add(BehaviorFunctionName.sensoryAutomatic, 1.0);
       } else {
@@ -165,19 +194,32 @@ class BehaviorInsightsService {
 
     // Normalize
     final sumScores = scores.values.fold<double>(0, (a, b) => a + b);
-    final ranked = scores.entries
-        .map((e) => FunctionScore(name: e.key, score: e.value, share: sumScores == 0 ? 0 : e.value / sumScores))
-        .toList()
-      ..sort((a, b) => b.share.compareTo(a.share));
+    final ranked =
+        scores.entries
+            .map(
+              (e) => FunctionScore(
+                name: e.key,
+                score: e.value,
+                share: sumScores == 0 ? 0 : e.value / sumScores,
+              ),
+            )
+            .toList()
+          ..sort((a, b) => b.share.compareTo(a.share));
     final conf = ranked.isEmpty ? 0.0 : ranked.first.share;
 
     // Hypothesis string
     String hyp;
     if (sumScores == 0) {
-      hyp = 'Insufficient signals to infer a likely function. Collect more ABC data.';
+      hyp =
+          'Insufficient signals to infer a likely function. Collect more ABC data.';
     } else {
-      final tops = ranked.take(2).where((f) => f.share > 0).map((f) => f.name).join(' / ');
-      hyp = 'Most likely function: $tops (confidence ${(conf * 100).toStringAsFixed(0)}%).';
+      final tops = ranked
+          .take(2)
+          .where((f) => f.share > 0)
+          .map((f) => f.name)
+          .join(' / ');
+      hyp =
+          'Most likely function: $tops (confidence ${(conf * 100).toStringAsFixed(0)}%).';
     }
 
     return BehaviorInsights(

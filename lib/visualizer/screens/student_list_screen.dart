@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-
-import 'package:flutter/material.dart';
 import '../models/student.dart';
 import 'behavior_detail_screen.dart';
 
