@@ -519,16 +519,16 @@ Error details: ${e.toString()}''';
                         showDialog(
                           context: context,
                           builder: (context) => AlertDialog(
-                          title: const Text('Saved Report'),
-                          content: Scrollbar(
-                            child: SingleChildScrollView(
-                              child: SelectableText(
-                                reportData['reportContent'] as String? ??
-                                    'No content.',
+                            title: const Text('Saved Report'),
+                            content: Scrollbar(
+                              child: SingleChildScrollView(
+                                child: SelectableText(
+                                  reportData['reportContent'] as String? ??
+                                      'No content.',
+                                ),
                               ),
                             ),
-                          ),
-                          actions: [
+                            actions: [
                               TextButton(
                                 onPressed: () => Navigator.of(context).pop(),
                                 child: const Text('Close'),
