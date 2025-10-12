@@ -5,7 +5,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'services/vertex_ai_service.dart';
 import 'pages/home_shell.dart';
 import 'pages/observation_page.dart';
-import 'utils/firestore_test_helper.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

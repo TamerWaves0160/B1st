@@ -150,7 +150,7 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
                         onPressed: _getInstantRecommendation,
                         icon: const Icon(Icons.lightbulb, color: Colors.white),
                         tooltip:
-                            'Get instant recommendation (${_confidence}% confident)',
+                            'Get instant recommendation ($_confidence% confident)',
                       ),
                     ),
                   ),
@@ -191,7 +191,7 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceVariant,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Column(
@@ -566,27 +566,54 @@ Error details: ${e.toString()}''';
           ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
-        // Temporarily simplified for testing - replace with StreamBuilder later
-        DropdownButtonFormField<String>(
-          value: _selectedStudentId,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            hintText: 'Choose a student for AI intervention testing',
-          ),
-          items: const [
-            DropdownMenuItem(
-              value: 'test-student-1',
-              child: Text('Alex (Test Student)'),
-            ),
-            DropdownMenuItem(
-              value: 'test-student-2',
-              child: Text('Jordan (Demo Student)'),
-            ),
-          ],
-          onChanged: (value) {
-            setState(() {
-              _selectedStudentId = value;
-            });
+        // Load all students from Firestore
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance.collection('students').snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Text('Error loading students: ${snapshot.error}');
+            }
+
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final students = snapshot.data!.docs;
+
+            if (students.isEmpty) {
+              return const Text(
+                'No students found. Create a student in the Observations tab first.',
+                style: TextStyle(color: Colors.orange),
+              );
+            }
+
+            // Check if current selected ID exists in the list
+            final studentIds = students.map((doc) => doc.id).toList();
+            final validSelectedId =
+                _selectedStudentId != null &&
+                    studentIds.contains(_selectedStudentId)
+                ? _selectedStudentId
+                : null;
+
+            return DropdownButtonFormField<String>(
+              value: validSelectedId,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText: 'Choose a student',
+              ),
+              items: students.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return DropdownMenuItem(
+                  value: doc.id,
+                  child: Text(data['name'] ?? 'Unknown'),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedStudentId = value;
+                });
+              },
+            );
           },
         ),
       ],
@@ -742,7 +769,7 @@ Error details: ${e.toString()}''';
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceVariant,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: SelectableText(

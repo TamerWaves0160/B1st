@@ -246,7 +246,7 @@ Best regards,
 
                       // Data Format
                       DropdownButtonFormField<String>(
-                        value: _selectedFormat,
+                        initialValue: _selectedFormat,
                         decoration: const InputDecoration(
                           labelText: 'Data Format',
                           border: OutlineInputBorder(),
@@ -266,7 +266,7 @@ Best regards,
 
                       // Timeframe
                       DropdownButtonFormField<String>(
-                        value: _selectedTimeframe,
+                        initialValue: _selectedTimeframe,
                         decoration: const InputDecoration(
                           labelText: 'Time Period',
                           border: OutlineInputBorder(),

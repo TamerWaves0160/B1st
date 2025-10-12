@@ -141,10 +141,12 @@ class _LandingTabState extends State<LandingTab> {
                                 ),
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (value) {
-                                  if (value == null || value.isEmpty)
+                                  if (value == null || value.isEmpty) {
                                     return 'Email required';
-                                  if (!value.contains('@'))
+                                  }
+                                  if (!value.contains('@')) {
                                     return 'Invalid email';
+                                  }
                                   return null;
                                 },
                               ),
@@ -166,10 +168,12 @@ class _LandingTabState extends State<LandingTab> {
                                 ),
                                 obscureText: _obscure,
                                 validator: (value) {
-                                  if (value == null || value.isEmpty)
+                                  if (value == null || value.isEmpty) {
                                     return 'Password required';
-                                  if (!_isLogin && value.length < 6)
+                                  }
+                                  if (!_isLogin && value.length < 6) {
                                     return 'Password must be at least 6 characters';
+                                  }
                                   return null;
                                 },
                               ),

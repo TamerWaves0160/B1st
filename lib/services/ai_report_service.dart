@@ -166,9 +166,7 @@ ${json.encode(context['rawObservations'])}
 ''';
 
     if (reportType == 'FBA') {
-      return basePrompt +
-          '''
-Generate a comprehensive Functional Behavior Analysis (FBA) report with the following sections:
+      return '''${basePrompt}Generate a comprehensive Functional Behavior Analysis (FBA) report with the following sections:
 
 1. BEHAVIOR IDENTIFICATION
    - Target behavior with operational definition
@@ -196,9 +194,7 @@ Generate a comprehensive Functional Behavior Analysis (FBA) report with the foll
 Format as a professional clinical report. Base all conclusions on the provided observation data.
 ''';
     } else {
-      return basePrompt +
-          '''
-Generate a comprehensive Behavior Intervention Plan (BIP) report with the following sections:
+      return '''${basePrompt}Generate a comprehensive Behavior Intervention Plan (BIP) report with the following sections:
 
 1. BEHAVIOR OVERVIEW
    - Target behavior from analysis
@@ -415,8 +411,9 @@ This BIP was generated using AI analysis of behavioral data. Please customize ba
 
   String _analyzeSeverityPattern(Map<String, dynamic> context) {
     final patterns = context['severityPatterns'] as Map<String, dynamic>?;
-    if (patterns == null || patterns.isEmpty)
+    if (patterns == null || patterns.isEmpty) {
       return 'No severity data available';
+    }
 
     final total = patterns.values.fold(0, (sum, count) => sum + (count as int));
     final percentages = patterns.map(

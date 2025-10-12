@@ -39,13 +39,11 @@ class _BehaviorChartState extends State<BehaviorChart> {
   Map<String, double> get aggregatedData {
     final data = <String, double>{};
     for (var behavior in filteredBehaviors) {
-      if (behavior.date != null) {
-        data.update(
-          behavior.date!,
-          (value) => value + behavior.duration,
-          ifAbsent: () => behavior.duration.toDouble(),
-        );
-      }
+      data.update(
+        behavior.date!,
+        (value) => value + behavior.duration,
+        ifAbsent: () => behavior.duration.toDouble(),
+      );
     }
     return data;
   }

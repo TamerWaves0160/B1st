@@ -303,7 +303,7 @@ class _ObservationPageState extends State<ObservationPage> {
                       ] else ...[
                         // Existing Student Dropdown
                         DropdownButtonFormField<String>(
-                          value: _selectedStudentId,
+                          initialValue: _selectedStudentId,
                           decoration: const InputDecoration(
                             labelText: 'Select Student *',
                             border: OutlineInputBorder(),
@@ -351,7 +351,7 @@ class _ObservationPageState extends State<ObservationPage> {
 
                       // Behavior Dropdown
                       DropdownButtonFormField<String>(
-                        value: _selectedBehavior,
+                        initialValue: _selectedBehavior,
                         decoration: const InputDecoration(
                           labelText: 'Select Behavior *',
                           border: OutlineInputBorder(),
@@ -504,7 +504,7 @@ class _ObservationPageState extends State<ObservationPage> {
 
                       // Consequence Dropdown
                       DropdownButtonFormField<String>(
-                        value: _selectedConsequence,
+                        initialValue: _selectedConsequence,
                         decoration: const InputDecoration(
                           labelText: 'What happened after the behavior? *',
                           border: OutlineInputBorder(),
