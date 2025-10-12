@@ -40,7 +40,7 @@ class _BehaviorChartState extends State<BehaviorChart> {
     final data = <String, double>{};
     for (var behavior in filteredBehaviors) {
       data.update(
-        behavior.date!,
+        behavior.date,
         (value) => value + behavior.duration,
         ifAbsent: () => behavior.duration.toDouble(),
       );
@@ -85,7 +85,7 @@ class _BehaviorChartState extends State<BehaviorChart> {
       final barRods = behaviorsOnDate.map((behavior) {
         return BarChartRodData(
           toY: behavior.duration.toDouble(),
-          color: getColor(behavior.type ?? ''),
+          color: getColor(behavior.type),
           width: 16,
         );
       }).toList();

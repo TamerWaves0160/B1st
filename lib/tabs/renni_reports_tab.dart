@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import '../services/ai_report_service.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
 
 class RenniReportsTab extends StatefulWidget {
   const RenniReportsTab({super.key});
@@ -212,11 +211,9 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    MarkdownBody(
-                      data: _suggestedIntervention!,
-                      styleSheet: MarkdownStyleSheet.fromTheme(
-                        Theme.of(context),
-                      ),
+                    SelectableText(
+                      _suggestedIntervention!,
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     if (_confidence != null) ...[
                       const SizedBox(height: 8),
@@ -522,17 +519,16 @@ Error details: ${e.toString()}''';
                         showDialog(
                           context: context,
                           builder: (context) => AlertDialog(
-                            title: const Text('Saved Report'),
-                            content: Scrollbar(
-                              child: SingleChildScrollView(
-                                child: MarkdownBody(
-                                  data:
-                                      reportData['reportContent'] as String? ??
-                                      'No content.',
-                                ),
+                          title: const Text('Saved Report'),
+                          content: Scrollbar(
+                            child: SingleChildScrollView(
+                              child: SelectableText(
+                                reportData['reportContent'] as String? ??
+                                    'No content.',
                               ),
                             ),
-                            actions: [
+                          ),
+                          actions: [
                               TextButton(
                                 onPressed: () => Navigator.of(context).pop(),
                                 child: const Text('Close'),
