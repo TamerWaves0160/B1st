@@ -1,6 +1,8 @@
 // lib/data/mock_student_data.dart
 // Mock student data for testing and demonstration purposes
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class MockStudentData {
   static List<StudentProfile> getStudentProfiles() {
     return [
@@ -286,13 +288,27 @@ class BehaviorIncident {
   });
 
   factory BehaviorIncident.fromJson(Map<String, dynamic> json) {
+    // Handle date field which can be String, Timestamp, or DateTime
+    DateTime parsedDate;
+    final dateValue = json['date'];
+
+    if (dateValue is String) {
+      parsedDate = DateTime.parse(dateValue);
+    } else if (dateValue is Timestamp) {
+      parsedDate = dateValue.toDate();
+    } else if (dateValue is DateTime) {
+      parsedDate = dateValue;
+    } else {
+      parsedDate = DateTime.now();
+    }
+
     return BehaviorIncident(
-      date: DateTime.parse(json['date']),
-      behavior: json['behavior'],
-      antecedent: json['antecedent'],
-      consequence: json['consequence'],
-      setting: json['setting'],
-      duration: json['duration'],
+      date: parsedDate,
+      behavior: json['behavior'] as String? ?? 'Unknown behavior',
+      antecedent: json['antecedent'] as String? ?? 'Unknown',
+      consequence: json['consequence'] as String? ?? 'Unknown',
+      setting: json['setting'] as String? ?? 'Unknown',
+      duration: json['duration'] as int?,
     );
   }
 

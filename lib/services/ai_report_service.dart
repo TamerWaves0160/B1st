@@ -38,7 +38,8 @@ class AIReportService {
         ownerUid: ownerUid,
         startDate: startDate,
         endDate: endDate,
-        observationIds: observationData.map((obs) => obs.id).toList(),
+        observationIds:
+            [], // Not tracking individual observation IDs since they're in an array
         fbaAnalysis: null,
         bipStrategies: null,
       );
@@ -51,34 +52,63 @@ class AIReportService {
   }
 
   /// Gather observation data from Firestore
-  Future<List<DocumentSnapshot>> _gatherObservationData({
+  Future<List<Map<String, dynamic>>> _gatherObservationData({
     required String studentId,
     required String ownerUid,
     DateTime? startDate,
     DateTime? endDate,
   }) async {
     try {
-      Query query = FirebaseFirestore.instance
-          .collection('behavior_events')
-          .where('uid', isEqualTo: ownerUid)
-          .where('studentId', isEqualTo: studentId);
+      // Get the student document
+      final studentDoc = await FirebaseFirestore.instance
+          .collection('students')
+          .doc(studentId)
+          .get();
 
-      if (startDate != null) {
-        query = query.where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
-      }
-      if (endDate != null) {
-        query = query.where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+      if (!studentDoc.exists) {
+        return [];
       }
 
-      final snapshot = await query.get();
-      return snapshot.docs;
+      final data = studentDoc.data() as Map<String, dynamic>;
+      final behaviorHistory = data['behaviorHistory'] as List<dynamic>? ?? [];
+
+      // Convert to list of maps and filter by date range if provided
+      final observations = behaviorHistory.cast<Map<String, dynamic>>().where((
+        incident,
+      ) {
+        if (startDate == null && endDate == null) return true;
+
+        final dateValue = incident['date'];
+        DateTime incidentDate;
+
+        if (dateValue is String) {
+          incidentDate = DateTime.parse(dateValue);
+        } else if (dateValue is Timestamp) {
+          incidentDate = dateValue.toDate();
+        } else {
+          return false;
+        }
+
+        if (startDate != null && incidentDate.isBefore(startDate)) {
+          return false;
+        }
+        if (endDate != null && incidentDate.isAfter(endDate)) {
+          return false;
+        }
+
+        return true;
+      }).toList();
+
+      return observations;
     } catch (e) {
       rethrow;
     }
   }
 
   /// Prepare RAG context from observation data
-  Map<String, dynamic> _prepareRAGContext(List<DocumentSnapshot> observations) {
+  Map<String, dynamic> _prepareRAGContext(
+    List<Map<String, dynamic>> observations,
+  ) {
     if (observations.isEmpty) {
       return {
         'summary': 'No observation data available',
@@ -91,15 +121,12 @@ class AIReportService {
     // Analyze behavior patterns
     final behaviorFrequency = <String, int>{};
     final triggers = <String>[];
-    final severityPatterns = <String, int>{};
+    final settingPatterns = <String, int>{};
     final timePatterns = <String, int>{};
 
-    for (final obs in observations) {
-      final data = obs.data() as Map<String, dynamic>?;
-      if (data == null) continue;
-
+    for (final data in observations) {
       // Count behavior types
-      final behavior = data['behaviorType'] as String? ?? 'Unknown';
+      final behavior = data['behavior'] as String? ?? 'Unknown';
       behaviorFrequency[behavior] = (behaviorFrequency[behavior] ?? 0) + 1;
 
       // Collect antecedents/triggers
@@ -108,14 +135,23 @@ class AIReportService {
         triggers.add(antecedent);
       }
 
-      // Analyze severity patterns
-      final severity = data['severity'] as String? ?? 'Unknown';
-      severityPatterns[severity] = (severityPatterns[severity] ?? 0) + 1;
+      // Analyze setting patterns
+      final setting = data['setting'] as String? ?? 'Unknown';
+      settingPatterns[setting] = (settingPatterns[setting] ?? 0) + 1;
 
-      // Time-based patterns (if timestamp exists)
-      final timestamp = data['timestamp'] as Timestamp?;
-      if (timestamp != null) {
-        final hour = timestamp.toDate().hour;
+      // Time-based patterns (if date exists)
+      final dateValue = data['date'];
+      if (dateValue != null) {
+        DateTime incidentDate;
+        if (dateValue is String) {
+          incidentDate = DateTime.parse(dateValue);
+        } else if (dateValue is Timestamp) {
+          incidentDate = dateValue.toDate();
+        } else {
+          continue;
+        }
+
+        final hour = incidentDate.hour;
         final timeOfDay = _getTimeOfDay(hour);
         timePatterns[timeOfDay] = (timePatterns[timeOfDay] ?? 0) + 1;
       }
@@ -123,22 +159,27 @@ class AIReportService {
 
     return {
       'totalObservations': observations.length,
-      'dateRange': _getDateRange(observations),
+      'dateRange': _getDateRangeFromMaps(observations),
       'behaviorFrequency': behaviorFrequency,
       'commonTriggers': _extractCommonTriggers(triggers),
-      'severityPatterns': severityPatterns,
+      'settingPatterns': settingPatterns,
       'timePatterns': timePatterns,
-      'rawObservations': observations.where((obs) => obs.data() != null).map((
-        obs,
-      ) {
-        final data = obs.data()! as Map<String, dynamic>;
+      'rawObservations': observations.map((data) {
+        final dateValue = data['date'];
+        String? dateString;
+        if (dateValue is String) {
+          dateString = DateTime.parse(dateValue).toIso8601String();
+        } else if (dateValue is Timestamp) {
+          dateString = dateValue.toDate().toIso8601String();
+        }
+
         return {
-          'date': (data['timestamp'] as Timestamp?)?.toDate().toIso8601String(),
-          'behavior': data['behaviorType'],
-          'severity': data['severity'],
-          'intensity': data['intensity'],
+          'date': dateString,
+          'behavior': data['behavior'],
+          'setting': data['setting'],
+          'duration': data['duration'],
           'antecedent': data['antecedent'],
-          'notes': data['notes'],
+          'consequence': data['consequence'],
         };
       }).toList(),
     };
@@ -261,16 +302,21 @@ Format as a professional intervention plan. Base all strategies on the behaviora
     return 'Evening';
   }
 
-  String _getDateRange(List<DocumentSnapshot> observations) {
+  String _getDateRangeFromMaps(List<Map<String, dynamic>> observations) {
     if (observations.isEmpty) return 'No data';
 
     final dates = observations
-        .map((obs) {
-          final data = obs.data() as Map<String, dynamic>?;
-          return data?['timestamp'] as Timestamp?;
+        .map((data) {
+          final dateValue = data['date'];
+          if (dateValue is String) {
+            return DateTime.parse(dateValue);
+          } else if (dateValue is Timestamp) {
+            return dateValue.toDate();
+          }
+          return null;
         })
-        .where((ts) => ts != null)
-        .map((ts) => ts!.toDate())
+        .where((date) => date != null)
+        .cast<DateTime>()
         .toList();
 
     if (dates.isEmpty) return 'No timestamps';
@@ -307,7 +353,7 @@ Format as a professional intervention plan. Base all strategies on the behaviora
     final mostCommonBehavior = _getMostFrequentBehavior(context);
     final primaryTriggers =
         context['commonTriggers'] as List<String>? ?? <String>[];
-    final severityPattern = _analyzeSeverityPattern(context);
+    final settingPattern = _analyzeSettingPattern(context);
 
     return '''FUNCTIONAL BEHAVIOR ANALYSIS (FBA)
 
@@ -319,7 +365,7 @@ SECTION 2: DATA SUMMARY
 Observation Period: ${context['dateRange']}
 Total Observations: ${context['totalObservations']}
 Frequency Analysis: ${context['behaviorFrequency']}
-Severity Patterns: $severityPattern
+Setting Patterns: $settingPattern
 
 SECTION 3: ANTECEDENT ANALYSIS
 Common Triggers Identified:
@@ -413,16 +459,16 @@ This BIP was generated using AI analysis of behavioral data. Please customize ba
     return mostFrequent;
   }
 
-  String _analyzeSeverityPattern(Map<String, dynamic> context) {
-    final patterns = context['severityPatterns'] as Map<String, dynamic>?;
+  String _analyzeSettingPattern(Map<String, dynamic> context) {
+    final patterns = context['settingPatterns'] as Map<String, dynamic>?;
     if (patterns == null || patterns.isEmpty) {
-      return 'No severity data available';
+      return 'No setting data available';
     }
 
     final total = patterns.values.fold(0, (sum, count) => sum + (count as int));
     final percentages = patterns.map(
-      (severity, count) =>
-          MapEntry(severity, ((count as int) / total * 100).round()),
+      (setting, count) =>
+          MapEntry(setting, ((count as int) / total * 100).round()),
     );
 
     return percentages.entries

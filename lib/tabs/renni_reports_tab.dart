@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import '../services/ai_report_service.dart';
 
 class RenniReportsTab extends StatefulWidget {
@@ -692,12 +695,7 @@ Error details: ${e.toString()}''';
                 ),
                 const Spacer(),
                 IconButton(
-                  onPressed: () {
-                    // TODO: Export to PDF
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('PDF export coming soon!')),
-                    );
-                  },
+                  onPressed: _exportReportToPdf,
                   icon: const Icon(Icons.download),
                   tooltip: 'Export to PDF',
                 ),
@@ -776,6 +774,167 @@ Error details: ${e.toString()}''';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error generating report: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _exportReportToPdf() async {
+    if (_generatedReport == null) return;
+
+    try {
+      final pdf = pw.Document();
+
+      // Get student name for the report
+      String studentName = 'Unknown Student';
+      if (_selectedStudentId != null) {
+        final studentDoc = await FirebaseFirestore.instance
+            .collection('students')
+            .doc(_selectedStudentId!)
+            .get();
+        if (studentDoc.exists) {
+          studentName = studentDoc.data()!['name'] as String;
+        }
+      }
+
+      // Split report into sections for better formatting
+      final reportLines = _generatedReport!.split('\n');
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.letter,
+          margin: const pw.EdgeInsets.all(40),
+          build: (pw.Context context) {
+            return [
+              // Header
+              pw.Header(
+                level: 0,
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      '$_selectedReportType Report',
+                      style: pw.TextStyle(
+                        fontSize: 24,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.SizedBox(height: 8),
+                    pw.Text(
+                      'Student: $studentName',
+                      style: pw.TextStyle(fontSize: 14),
+                    ),
+                    pw.Text(
+                      'Generated: ${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year}',
+                      style: pw.TextStyle(
+                        fontSize: 12,
+                        color: PdfColors.grey700,
+                      ),
+                    ),
+                    if (_selectedDateRange != null)
+                      pw.Text(
+                        'Date Range: ${_selectedDateRange!.start.month}/${_selectedDateRange!.start.day}/${_selectedDateRange!.start.year} - ${_selectedDateRange!.end.month}/${_selectedDateRange!.end.day}/${_selectedDateRange!.end.year}',
+                        style: pw.TextStyle(
+                          fontSize: 12,
+                          color: PdfColors.grey700,
+                        ),
+                      ),
+                    pw.Divider(thickness: 2),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 20),
+
+              // Report content
+              ...reportLines.map((line) {
+                if (line.trim().isEmpty) {
+                  return pw.SizedBox(height: 10);
+                } else if (line.startsWith('SECTION') ||
+                    line.contains('FUNCTIONAL BEHAVIOR ANALYSIS') ||
+                    line.contains('BEHAVIOR INTERVENTION PLAN')) {
+                  // Section headers
+                  return pw.Container(
+                    margin: const pw.EdgeInsets.only(top: 15, bottom: 8),
+                    child: pw.Text(
+                      line,
+                      style: pw.TextStyle(
+                        fontSize: 14,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.blue900,
+                      ),
+                    ),
+                  );
+                } else if (line.trim().startsWith('•')) {
+                  // Bullet points
+                  return pw.Padding(
+                    padding: const pw.EdgeInsets.only(
+                      left: 20,
+                      top: 4,
+                      bottom: 4,
+                    ),
+                    child: pw.Text(
+                      line,
+                      style: const pw.TextStyle(fontSize: 11),
+                    ),
+                  );
+                } else if (line.contains(':')) {
+                  // Key-value pairs
+                  final parts = line.split(':');
+                  if (parts.length == 2) {
+                    return pw.Padding(
+                      padding: const pw.EdgeInsets.only(top: 6, bottom: 6),
+                      child: pw.RichText(
+                        text: pw.TextSpan(
+                          children: [
+                            pw.TextSpan(
+                              text: '${parts[0].trim()}: ',
+                              style: pw.TextStyle(
+                                fontSize: 11,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.TextSpan(
+                              text: parts[1].trim(),
+                              style: const pw.TextStyle(fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+                }
+                // Regular text
+                return pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 4, bottom: 4),
+                  child: pw.Text(line, style: const pw.TextStyle(fontSize: 11)),
+                );
+              }).toList(),
+            ];
+          },
+        ),
+      );
+
+      // Show print dialog or save
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+        name:
+            '${_selectedReportType}_${studentName.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.pdf',
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('PDF exported successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error exporting PDF: $e');
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error exporting PDF: $e'),
           backgroundColor: Colors.red,
         ),
       );

@@ -90,33 +90,126 @@ class VisualizerTab extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('students').snapshots(),
       builder: (context, snapshot) {
+        // Debug: Print connection state
+        debugPrint(
+          '📊 Visualizer: ConnectionState = ${snapshot.connectionState}',
+        );
+        debugPrint('📊 Visualizer: Has data = ${snapshot.hasData}');
+        debugPrint('📊 Visualizer: Has error = ${snapshot.hasError}');
+        if (snapshot.hasData) {
+          debugPrint(
+            '📊 Visualizer: Document count = ${snapshot.data!.docs.length}',
+          );
+        }
+
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                Text('Error loading data: ${snapshot.error}'),
+                const SizedBox(height: 8),
+                Text(
+                  'Stack trace: ${snapshot.stackTrace}',
+                  style: const TextStyle(fontSize: 10),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
         }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text('No students found.'));
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.person_off, size: 48),
+                const SizedBox(height: 16),
+                const Text('No students found in Firestore.'),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    try {
+                      await FirebaseFirestore.instance
+                          .collection('students')
+                          .doc('test')
+                          .set({
+                            'name': 'Test Student',
+                            'age': 10,
+                            'grade': '5th',
+                            'behaviorHistory': [],
+                          });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Test student created!')),
+                      );
+                    } catch (e) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                    }
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Test Student'),
+                ),
+              ],
+            ),
+          );
         }
 
-        final students = snapshot.data!.docs.map((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final studentProfile = StudentProfile.fromJson(data);
-          return Student(
-            id: studentProfile.id,
-            name: studentProfile.name,
-            behaviors: studentProfile.behaviorHistory.map((incident) {
-              return Behavior(
-                date: incident.date.toIso8601String().split('T').first,
-                type: categorizeBehavior(incident.behavior),
-                duration: incident.duration ?? 0,
-              );
-            }).toList(),
-          );
-        }).toList();
+        try {
+          final students = snapshot.data!.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
 
-        return StudentListScreen(students: students);
+            // Add doc ID if missing
+            if (!data.containsKey('id')) {
+              data['id'] = doc.id;
+            }
+
+            // Provide defaults for missing fields
+            data['age'] = data['age'] ?? 0;
+            data['grade'] = data['grade'] ?? 'Unknown';
+            data['behaviorHistory'] = data['behaviorHistory'] ?? [];
+
+            final studentProfile = StudentProfile.fromJson(data);
+            return Student(
+              id: studentProfile.id,
+              name: studentProfile.name,
+              behaviors: studentProfile.behaviorHistory.map((incident) {
+                return Behavior(
+                  date: incident.date.toIso8601String().split('T').first,
+                  type: categorizeBehavior(incident.behavior),
+                  duration: incident.duration ?? 0,
+                );
+              }).toList(),
+            );
+          }).toList();
+
+          return StudentListScreen(students: students);
+        } catch (e, stackTrace) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error, size: 48, color: Colors.orange),
+                const SizedBox(height: 16),
+                const Text('Error parsing student data:'),
+                const SizedBox(height: 8),
+                Text('$e', style: const TextStyle(fontSize: 12)),
+                const SizedBox(height: 8),
+                Text(
+                  'Stack: $stackTrace',
+                  style: const TextStyle(fontSize: 10),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+        }
       },
     );
   }
