@@ -24,7 +24,6 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
   bool _isAnalyzingIntervention = false;
   bool _showLightbulb = false;
   String? _suggestedIntervention;
-  String? _confidence;
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +59,6 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
     );
   }
 
-  // Quick Intervention Recommendations Section
   Widget _buildQuickInterventionSection() {
     return Card(
       child: Padding(
@@ -76,10 +74,12 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
                   size: 28,
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  'Quick Intervention Recommendations',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    'Quick Intervention Recommendations',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                 ),
               ],
@@ -88,12 +88,10 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
             Text(
               'Get immediate AI-powered intervention suggestions for challenging behaviors. Perfect for in-the-moment classroom support.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
             ),
             const SizedBox(height: 24),
-
-            // Student Name Input (Quick Entry)
             TextField(
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
@@ -106,8 +104,6 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
               },
             ),
             const SizedBox(height: 16),
-
-            // Behavior Description with Smart Lightbulb
             Stack(
               children: [
                 TextField(
@@ -118,118 +114,87 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
                     labelText: 'Describe the Challenging Behavior',
                     hintText:
                         'e.g., "Student is calling out answers without raising hand during math lessons, disrupting other students..."',
-                    prefixIcon: Icon(Icons.description),
                   ),
-                  onChanged: (value) {
-                    setState(() {
-                      // This will trigger a rebuild and enable/disable the button
-                    });
-                    _onInterventionTextChanged(value);
-                  },
+                  onChanged: _onInterventionTextChanged,
                 ),
-
-                // Smart Lightbulb Icon (appears when AI is confident)
                 if (_showLightbulb)
                   Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.amber,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.amber.withOpacity(0.3),
-                            blurRadius: 8,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                      child: IconButton(
-                        onPressed: _getInstantRecommendation,
-                        icon: const Icon(Icons.lightbulb, color: Colors.white),
-                        tooltip:
-                            'Get instant recommendation ($_confidence% confident)',
+                    right: 12,
+                    top: 12,
+                    child: Tooltip(
+                      message: 'Get an instant AI recommendation!',
+                      child: InkWell(
+                        onTap: _getInstantRecommendation,
+                        child: Icon(
+                          Icons.lightbulb,
+                          color: Colors.amber,
+                          size: 24,
+                        ),
                       ),
                     ),
                   ),
               ],
             ),
-            const SizedBox(height: 20),
-
-            // Generate Recommendations Button
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed:
-                    _isAnalyzingIntervention ||
+                onPressed: _isAnalyzingIntervention ||
                         _interventionController.text.trim().isEmpty
                     ? null
                     : _generateQuickIntervention,
                 icon: _isAnalyzingIntervention
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
                       )
-                    : const Icon(Icons.auto_awesome),
+                    : const Icon(Icons.psychology_alt),
                 label: Text(
                   _isAnalyzingIntervention
-                      ? 'Generating Recommendations...'
-                      : 'Get Intervention Recommendations',
+                      ? 'Analyzing...'
+                      : 'Get AI Recommendation',
                 ),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
               ),
             ),
-
-            // Quick Intervention Results
             if (_suggestedIntervention != null) ...[
               const SizedBox(height: 24),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.lightbulb,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Recommended Interventions',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    SelectableText(
-                      _suggestedIntervention!,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    if (_confidence != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        _confidence!,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+              _buildInterventionResult(),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildInterventionResult() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Suggested Intervention',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const Divider(height: 16),
+          SelectableText(
+            _suggestedIntervention!,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
       ),
     );
   }
@@ -253,8 +218,8 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
                 Text(
                   'Formal FBA & BIP Reports',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
               ],
             ),
@@ -262,24 +227,16 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
             Text(
               'Generate comprehensive Functional Behavior Analysis (FBA) and Behavior Intervention Plans (BIP) using historical observation data.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
             ),
             const SizedBox(height: 24),
-
-            // Student Selection for Formal Reports
             _buildStudentSelector(),
             const SizedBox(height: 20),
-
-            // Report Type Selection
             _buildReportTypeSelector(),
             const SizedBox(height: 20),
-
-            // Date Range Selection
             _buildDateRangeSelector(),
             const SizedBox(height: 24),
-
-            // Generate Formal Report Button
             _buildGenerateButton(),
           ],
         ),
@@ -294,65 +251,54 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
     setState(() {
       _isAnalyzingIntervention = true;
       _suggestedIntervention = null;
-      _confidence = null;
     });
 
     try {
+      // Ensure user is authenticated
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('You must be signed in to use this feature.');
+      }
+
+      // Force token refresh to ensure it's valid
+      await user.getIdToken(true);
+
       if (kDebugMode) {
         print(
           '🔍 Calling Firebase Function for: ${_interventionController.text.trim()}',
         );
+        print('👤 User ID: ${user.uid}');
       }
 
-      // Use advanced AI system with embeddings + LLM
+      // Use the new RAG system
       final callable = FirebaseFunctions.instanceFor(
         region: 'us-central1',
-      ).httpsCallable('generateComprehensiveAnalysis');
+      ).httpsCallable('getIntervention');
 
       final result = await callable.call({
-        'behaviorDescription': _interventionController.text.trim(),
-        'includeDetailedAnalysis': true,
-        // Add context for better AI analysis
-        'ageGroup': 'elementary', // TODO: Make this selectable in UI
-        'setting': 'classroom', // TODO: Make this selectable in UI
+        'situation': _interventionController.text.trim(),
       });
 
       final data = result.data as Map<String, dynamic>;
-
-      // The comprehensiveAnalysis from the LLM is a complete, formatted report.
-      // We should display it directly and not try to re-assemble it.
-      final comprehensiveAnalysis =
-          data['comprehensiveAnalysis'] as String? ?? '';
-
-      final analysisMethod = data['analysisMethod'] as String? ?? 'AI Analysis';
-      final metadata = data['metadata'] as Map<String, dynamic>? ?? {};
-
-      final matchCount = metadata['semanticMatches'] as int? ?? 0;
-      final totalChecked = metadata['totalInterventionsChecked'] as int? ?? 0;
-      final confidenceText =
-          'Generated using $analysisMethod - analyzed $totalChecked interventions, found $matchCount semantic matches';
+      final recommendation = data['recommendation'] as String? ?? 'No recommendation was generated.';
 
       // Save the report to Firestore for history
       final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId != null && comprehensiveAnalysis.isNotEmpty) {
+      if (userId != null && recommendation.isNotEmpty) {
         await FirebaseFirestore.instance
             .collection('users')
             .doc(userId)
             .collection('ai_reports')
             .add({
               'behaviorDescription': _interventionController.text.trim(),
-              'reportContent': comprehensiveAnalysis,
+              'reportContent': recommendation,
               'timestamp': FieldValue.serverTimestamp(),
-              'analysisMethod': analysisMethod,
-              'metadata': metadata,
+              'analysisMethod': 'RAG', // Mark as a RAG-generated report
             });
       }
 
       setState(() {
-        _suggestedIntervention = comprehensiveAnalysis.isNotEmpty
-            ? comprehensiveAnalysis
-            : 'No specific recommendations generated.';
-        _confidence = confidenceText;
+        _suggestedIntervention = recommendation;
         _isAnalyzingIntervention = false;
       });
     } catch (e) {
@@ -372,8 +318,6 @@ We encountered an issue with the advanced AI analysis system. This could be due 
 Please try again in a moment or contact support if the issue persists.
 
 Error details: ${e.toString()}''';
-        _confidence =
-            'Advanced AI system temporarily unavailable - please try again';
         _isAnalyzingIntervention = false;
       });
     }
@@ -411,13 +355,10 @@ Error details: ${e.toString()}''';
 
             if (hasKeywords && text.length > 30) {
               _showLightbulb = true;
-              _confidence = '85';
             } else if (text.length > 50) {
               _showLightbulb = true;
-              _confidence = '72';
             } else if (text.length > 20) {
               _showLightbulb = true;
-              _confidence = '65';
             } else {
               _showLightbulb = false;
             }
@@ -592,7 +533,7 @@ Error details: ${e.toString()}''';
                 : null;
 
             return DropdownButtonFormField<String>(
-              value: validSelectedId,
+              initialValue: validSelectedId,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 hintText: 'Choose a student',

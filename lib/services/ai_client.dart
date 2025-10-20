@@ -53,27 +53,6 @@ class AiClient {
   }
 
   // ---------- Intervention recommender ----------
-  Future<List<Map<String, dynamic>>> recommendInterventions({
-    required String query,
-    String? functionHint,
-    int topK = 5,
-  }) async {
-    final callable = _fx.httpsCallable('recommendInterventions');
-    final res = await callable({
-      'query': query,
-      if (functionHint != null && functionHint.isNotEmpty)
-        'function': functionHint,
-      'topK': topK,
-    });
-
-    final data = _asMap(res.data);
-    final items = (data['items'] as List? ?? const []);
-    final out = items
-        .cast<Map>()
-        .map((m) => m.map((k, v) => MapEntry(k.toString(), v)))
-        .toList();
-
-    debugPrint('[AI] recommendInterventions count=${out.length}');
-    return out;
-  }
+  // REMOVED: Old recommendInterventions function
+  // Now using RAG system via getIntervention in renni_reports_tab.dart
 }

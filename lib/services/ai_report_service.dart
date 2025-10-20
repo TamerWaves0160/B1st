@@ -57,20 +57,24 @@ class AIReportService {
     DateTime? startDate,
     DateTime? endDate,
   }) async {
-    Query query = FirebaseFirestore.instance
-        .collection('behavior_events')
-        .where('uid', isEqualTo: ownerUid)
-        .where('studentId', isEqualTo: studentId);
+    try {
+      Query query = FirebaseFirestore.instance
+          .collection('behavior_events')
+          .where('uid', isEqualTo: ownerUid)
+          .where('studentId', isEqualTo: studentId);
 
-    if (startDate != null) {
-      query = query.where('timestamp', isGreaterThanOrEqualTo: startDate);
-    }
-    if (endDate != null) {
-      query = query.where('timestamp', isLessThanOrEqualTo: endDate);
-    }
+      if (startDate != null) {
+        query = query.where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+      }
+      if (endDate != null) {
+        query = query.where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+      }
 
-    final snapshot = await query.get();
-    return snapshot.docs;
+      final snapshot = await query.get();
+      return snapshot.docs;
+    } catch (e) {
+      rethrow;
+    }
   }
 
   /// Prepare RAG context from observation data

@@ -1,6 +1,6 @@
 // functions/src/generate-embeddings.ts
 import {onCall, HttpsError} from 'firebase-functions/v2/https';
-import {getFirestore} from 'firebase-admin/firestore';
+import {getFirestore, FieldValue} from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
 import {EmbeddingsService} from './embeddings-service';
 
@@ -9,8 +9,11 @@ const db = getFirestore();
 export const generateInterventionEmbeddings = onCall(
     {region: 'us-central1', timeoutSeconds: 300, cors: true},
     async (request) => {
-      const uid = request.auth?.uid;
-      if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+      const uid = request.auth?.uid || 'system';
+      // Require authentication for production use
+      if (!request.auth?.uid) {
+        throw new HttpsError('unauthenticated', 'Admin authentication required.');
+      }
       logger.info('generateInterventionEmbeddings called', {uid});
 
       try {
@@ -41,7 +44,7 @@ export const generateInterventionEmbeddings = onCall(
 
           const docRef = db.collection('interventions').doc(intervention.id);
           batch.update(docRef, {
-            embedding: embedding,
+            embedding: FieldValue.vector(embedding),
             embeddingText: interventionTexts[i],
             embeddingGeneratedAt: new Date(),
             updatedAt: new Date(),

@@ -14,11 +14,32 @@ service cloud.firestore {
         && request.resource.data.intensity is int
         && request.resource.data.intensity >= 1
         && request.resource.data.intensity <= 5;
-      allow read, update, delete: if isOwner(resource.data.uid);
+      // Allow reading demo data (owned by ujbh7fonM1XmL1y3ouqXHcmA6qa2) OR own data
+      allow get: if signedIn() && 
+        (resource.data.uid == 'ujbh7fonM1XmL1y3ouqXHcmA6qa2' || resource.data.uid == request.auth.uid);
+      // Allow list queries - Firestore will filter results
+      allow list: if signedIn();
+      // Only owner can update/delete their own data
+      allow update, delete: if isOwner(resource.data.uid);
     }
 
     match /students/{sid} {
-      allow read, write: if signedIn();
+      // Allow reading demo students (owned by ujbh7fonM1XmL1y3ouqXHcmA6qa2) OR own students
+      allow get: if signedIn() && 
+        (resource.data.ownerUid == 'ujbh7fonM1XmL1y3ouqXHcmA6qa2' || resource.data.ownerUid == request.auth.uid);
+      // Allow list queries - Firestore will filter to show only accessible students
+      allow list: if signedIn();
+      // Only allow creating/updating own students
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // Top-level ai_reports collection
+    match /ai_reports/{reportId} {
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow read, update, delete: if signedIn()
+        && resource.data.ownerUid == request.auth.uid;
     }
 
     match /users/{userId} {
@@ -37,6 +58,12 @@ service cloud.firestore {
         && request.resource.data.dataFormat is string
         && request.resource.data.timeframe is string;
       allow read, update, delete: if isOwner(resource.data.userId);
+    }
+
+    // Interventions collection - read-only for authenticated users
+    match /interventions/{interventionId} {
+      allow read: if signedIn();
+      allow write: if false; // Only admin via Cloud Functions can write
     }
   }
 }

@@ -1,4 +1,7 @@
 // functions/src/intervention-database.ts
+import {getFirestore} from 'firebase-admin/firestore';
+import * as logger from 'firebase-functions/logger';
+
 // Comprehensive Evidence-Based Behavioral Intervention Database
 
 export interface Intervention {
@@ -16,6 +19,54 @@ export interface Intervention {
   frequency?: string;
   duration?: string;
 }
+
+/**
+ * Finds the most similar documents in the 'interventions' collection in Firestore
+ * based on a query embedding.
+ * @param {number[]} queryEmbedding - The embedding vector of the user's query.
+ * @param {number} limit - The maximum number of similar documents to return.
+ * @returns {Promise<Intervention[]>} A promise that resolves to an array of the most similar interventions.
+ */
+export async function findSimilarDocuments(
+    queryEmbedding: number[],
+    limit: number,
+): Promise<Intervention[]> {
+  const db = getFirestore();
+  const interventionsRef = db.collection('interventions');
+
+  try {
+    // First, check how many documents have embeddings
+    const allDocs = await interventionsRef.get();
+    const docsWithEmbeddings = allDocs.docs.filter((doc) => doc.data().embedding);
+    logger.info(`Total interventions: ${allDocs.size}, with embeddings: ${docsWithEmbeddings.length}`);
+
+    // Corrected call to findNearest with 3 arguments
+    const vectorQuery = interventionsRef.findNearest('embedding', queryEmbedding, {
+      limit: limit,
+      distanceMeasure: 'COSINE',
+    });
+
+    const querySnapshot = await vectorQuery.get();
+
+    if (querySnapshot.empty) {
+      logger.warn('No similar interventions found via vector search.');
+      logger.warn('This might indicate the vector index needs more time to sync after embedding generation.');
+      logger.warn('Vector indexes can take 10-30 minutes to update after batch writes.');
+      return [];
+    }
+
+    const similarInterventions = querySnapshot.docs.map((doc) => {
+      return {id: doc.id, ...doc.data()} as Intervention;
+    });
+
+    logger.info(`Found ${similarInterventions.length} similar interventions.`);
+    return similarInterventions;
+  } catch (error) {
+    logger.error('Error performing vector search:', error);
+    throw new Error('Failed to find similar documents in the database.');
+  }
+}
+
 
 export const INTERVENTION_DATABASE: Intervention[] = [
   // ATTENTION-SEEKING INTERVENTIONS

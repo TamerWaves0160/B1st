@@ -161,7 +161,86 @@ const interventions = [
   },
 ];
 
-// Mock student data
+// Helper to generate behavior history for 14 days
+function generateBehaviorHistory(studentProfile: string): any[] {
+  const behaviors: any[] = [];
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  // Different behavior patterns based on student profile
+  const behaviorTemplates: Record<string, any[]> = {
+    'ADHD': [
+      {behavior: 'Out of seat 8 times during reading lesson, wandered to window', antecedent: 'Teacher reading aloud to class', consequence: 'Redirected to seat, given fidget tool', setting: 'Classroom - reading', duration: 15},
+      {behavior: 'Called out answers 12 times without raising hand', antecedent: 'Teacher asking comprehension questions', consequence: 'Reminded of hand-raising rule, lost participation points', setting: 'Classroom - reading', duration: 30},
+      {behavior: 'Completed only 3 of 10 math problems, doodling on paper', antecedent: 'Independent work time - math worksheet', consequence: 'Given choice of completing now or during recess', setting: 'Classroom - math', duration: 20},
+      {behavior: 'Running in hallway, bumped into peer', antecedent: 'Transition from classroom to lunch', consequence: 'Asked to walk back and try again', setting: 'Hallway', duration: 2},
+      {behavior: 'Blurted out during quiet reading time 5 times', antecedent: 'Silent reading period', consequence: 'Moved to quieter area of room', setting: 'Classroom - reading', duration: 20},
+      {behavior: 'Left seat to sharpen pencil 6 times in 15 minutes', antecedent: 'Writing assignment', consequence: 'Given pre-sharpened pencils at desk', setting: 'Classroom - writing', duration: 15},
+      {behavior: 'Fidgeting with materials, knocked books off desk', antecedent: 'Teacher giving instructions', consequence: 'Helped clean up, given stress ball', setting: 'Classroom', duration: 5},
+      {behavior: 'Talked to neighbors during independent work, distracted 3 peers', antecedent: 'Science worksheet completion', consequence: 'Moved to different seat', setting: 'Classroom - science', duration: 25},
+    ],
+    'ASD': [
+      {behavior: 'Refused to join group, put head down on desk, covered ears', antecedent: 'Teacher announced group project', consequence: 'Allowed to work on individual version', setting: 'Classroom - science', duration: 10},
+      {behavior: 'Became upset when schedule changed, crying and rocking', antecedent: 'Assembly announced instead of regular class', consequence: 'Given 5-minute warning and visual schedule', setting: 'Classroom', duration: 8},
+      {behavior: 'Would not respond when peer asked to play', antecedent: 'Recess - peer invitation', consequence: 'Teacher provided social script prompt', setting: 'Playground', duration: 3},
+      {behavior: 'Repetitive hand movements during math, not completing work', antecedent: 'Math problem solving', consequence: 'Given movement break, then completed work', setting: 'Classroom - math', duration: 15},
+      {behavior: 'Refused to transition to next activity, stayed at computer', antecedent: 'Computer time ending', consequence: 'Visual timer used, successful transition after 2 minutes', setting: 'Computer lab', duration: 12},
+      {behavior: 'Lined up pencils repeatedly instead of writing', antecedent: 'Writing prompt given', consequence: 'Pencils removed except one, task completed', setting: 'Classroom - writing', duration: 10},
+      {behavior: 'Shut down when fire drill announced, would not move', antecedent: 'Fire drill alarm', consequence: 'Provided noise-canceling headphones, walked with support', setting: 'Classroom', duration: 20},
+      {behavior: 'Focused on book during group discussion, did not respond', antecedent: 'Group reading discussion', consequence: 'Given written response option instead', setting: 'Classroom - reading', duration: 15},
+    ],
+    'ODD': [
+      {behavior: 'Argued with teacher about assignment for 5 minutes', antecedent: 'Asked to complete math worksheet', consequence: 'Sent to cool-down area, completed later', setting: 'Classroom - math', duration: 5},
+      {behavior: 'Refused to follow classroom rules, said "You can\'t make me"', antecedent: 'Reminded to put away phone', consequence: 'Phone confiscated, parent contacted', setting: 'Classroom', duration: 3},
+      {behavior: 'Deliberately knocked materials off desk', antecedent: 'Asked to start assignment', consequence: 'Cleaned up materials, loss of preferred activity', setting: 'Classroom', duration: 2},
+      {behavior: 'Talked back to teacher, used disrespectful tone', antecedent: 'Corrected for off-task behavior', consequence: 'Sent to office, conference with counselor', setting: 'Classroom', duration: 10},
+      {behavior: 'Refused to work with assigned partner', antecedent: 'Partner assignment for science lab', consequence: 'Allowed to work alone with reduced points', setting: 'Classroom - science', duration: 5},
+      {behavior: 'Blamed peer for own mistake, raised voice', antecedent: 'Caught not following directions', consequence: 'Reflection sheet completed', setting: 'Classroom', duration: 15},
+      {behavior: 'Ignored three teacher requests to begin work', antecedent: 'Independent reading assignment', consequence: 'Moved closer to teacher, task completed', setting: 'Classroom - reading', duration: 10},
+      {behavior: 'Rolled eyes and sighed loudly when corrected', antecedent: 'Teacher provided feedback on work', consequence: 'Private conversation about respect', setting: 'Classroom', duration: 5},
+    ],
+    'Anxiety': [
+      {behavior: 'Tearful, refused to present project to class', antecedent: 'Called on to present', consequence: 'Allowed to present to teacher only after class', setting: 'Classroom', duration: 10},
+      {behavior: 'Frequent bathroom requests, 4 times in one hour', antecedent: 'Math test period', consequence: 'Allowed breaks, test extended', setting: 'Classroom - math', duration: 50},
+      {behavior: 'Chewing on pencil, shaking leg, not completing work', antecedent: 'Timed writing assignment', consequence: 'Given untimed option, work completed', setting: 'Classroom - writing', duration: 30},
+      {behavior: 'Complained of stomachache, asked to go to nurse', antecedent: 'Before oral presentation', consequence: 'Nurse visit, counselor check-in, presentation postponed', setting: 'Classroom', duration: 15},
+      {behavior: 'Avoided eye contact, minimal responses when called on', antecedent: 'Class discussion', consequence: 'Allowed to pass, can write response instead', setting: 'Classroom - reading', duration: 5},
+      {behavior: 'Excessive erasing, paper torn from erasing', antecedent: 'Independent writing task', consequence: 'Reassurance provided, allowed to type instead', setting: 'Classroom - writing', duration: 20},
+      {behavior: 'Cried when group assignment announced', antecedent: 'Group work introduction', consequence: 'Allowed to choose partner, successful completion', setting: 'Classroom', duration: 8},
+      {behavior: 'Did not attempt new math concept, said "I can\'t do it"', antecedent: 'Introduction of fractions', consequence: 'Step-by-step support, successful with guidance', setting: 'Classroom - math', duration: 25},
+    ],
+    'General': [
+      {behavior: 'Talking during instruction, off-task', antecedent: 'Teacher explaining assignment', consequence: 'Verbal reminder to listen', setting: 'Classroom', duration: 5},
+      {behavior: 'Not following directions, needed multiple prompts', antecedent: 'Clean-up time', consequence: 'Loss of 2 minutes of break time', setting: 'Classroom', duration: 8},
+      {behavior: 'Incomplete homework for third time this week', antecedent: 'Homework check', consequence: 'Parent email, homework club recommended', setting: 'Classroom', duration: 0},
+      {behavior: 'Playing with materials instead of working', antecedent: 'Independent reading time', consequence: 'Materials removed, completed reading', setting: 'Classroom - reading', duration: 10},
+    ],
+  };
+
+  const getTemplates = (profile: string) => behaviorTemplates[profile] || behaviorTemplates['General'];
+  const templates = getTemplates(studentProfile);
+
+  // Generate 10-14 incidents over 14 days
+  const numIncidents = 10 + Math.floor(Math.random() * 5);
+  for (let i = 0; i < numIncidents; i++) {
+    const daysAgo = Math.floor((i / numIncidents) * 14);
+    const date = new Date(now - (daysAgo * dayMs));
+    const template = templates[i % templates.length];
+
+    behaviors.push({
+      date: date,
+      behavior: template.behavior,
+      antecedent: template.antecedent,
+      consequence: template.consequence,
+      setting: template.setting,
+      duration: template.duration,
+    });
+  }
+
+  return behaviors;
+}
+
+// Mock student data with 14 days of behavior history
 const mockStudents = [
   {
     id: 'student_001',
@@ -183,6 +262,7 @@ const mockStudents = [
       'Movement breaks every 20 minutes',
       'Visual schedule for daily routine',
     ],
+    behaviorHistory: generateBehaviorHistory('ADHD'),
   },
   {
     id: 'student_002',
@@ -205,14 +285,133 @@ const mockStudents = [
       'Social scripts for peer interactions',
       'Choice of group or individual work options',
     ],
+    behaviorHistory: generateBehaviorHistory('ASD'),
+  },
+  {
+    id: 'student_003',
+    name: 'Jordan Lee',
+    age: 10,
+    grade: '5th Grade',
+    diagnosis: 'Oppositional Defiant Disorder',
+    behaviorConcerns: [
+      'Argues with adults',
+      'Refuses to comply with requests',
+      'Deliberately annoys others',
+    ],
+    strengths: [
+      'Strong leadership qualities',
+      'Athletic abilities',
+      'Loyal to friends',
+    ],
+    currentInterventions: [
+      'Choice-making opportunities',
+      'Positive adult relationship building',
+      'Clear expectations with logical consequences',
+    ],
+    behaviorHistory: generateBehaviorHistory('ODD'),
+  },
+  {
+    id: 'student_004',
+    name: 'Emma Chen',
+    age: 9,
+    grade: '4th Grade',
+    diagnosis: 'Anxiety Disorder',
+    behaviorConcerns: [
+      'Avoids academic challenges',
+      'Frequent somatic complaints',
+      'Difficulty with social situations',
+    ],
+    strengths: [
+      'Highly organized',
+      'Empathetic toward others',
+      'Excellent written communication',
+    ],
+    currentInterventions: [
+      'Regular check-ins with counselor',
+      'Break pass when overwhelmed',
+      'Alternative presentation formats',
+    ],
+    behaviorHistory: generateBehaviorHistory('Anxiety'),
+  },
+  {
+    id: 'student_005',
+    name: 'Marcus Williams',
+    age: 11,
+    grade: '6th Grade',
+    diagnosis: 'ADHD - Combined Type',
+    behaviorConcerns: [
+      'Impulsive responses',
+      'Difficulty waiting turn',
+      'Loses materials frequently',
+    ],
+    strengths: [
+      'Enthusiastic about learning',
+      'Creative thinker',
+      'Good sense of humor',
+    ],
+    currentInterventions: [
+      'Organizational system with color-coding',
+      'Preferential seating near teacher',
+      'Frequent positive reinforcement',
+    ],
+    behaviorHistory: generateBehaviorHistory('ADHD'),
+  },
+  {
+    id: 'student_006',
+    name: 'Sophia Patel',
+    age: 13,
+    grade: '8th Grade',
+    diagnosis: 'Autism Spectrum Disorder',
+    behaviorConcerns: [
+      'Rigid thinking patterns',
+      'Difficulty with transitions',
+      'Limited peer relationships',
+    ],
+    strengths: [
+      'Advanced vocabulary',
+      'Strong interest in science',
+      'Honest and direct communication',
+    ],
+    currentInterventions: [
+      'Visual schedules for transitions',
+      'Social skills group participation',
+      'Special interest integration in lessons',
+    ],
+    behaviorHistory: generateBehaviorHistory('ASD'),
+  },
+  {
+    id: 'student_007',
+    name: 'Tyler Brown',
+    age: 7,
+    grade: '2nd Grade',
+    diagnosis: 'Generalized Anxiety Disorder',
+    behaviorConcerns: [
+      'School refusal behaviors',
+      'Perfectionism leading to incomplete work',
+      'Separation anxiety',
+    ],
+    strengths: [
+      'Kind to peers',
+      'Follows classroom rules',
+      'Strong in math concepts',
+    ],
+    currentInterventions: [
+      'Gradual exposure to anxiety triggers',
+      'Positive self-talk scripts',
+      'Parent communication at transitions',
+    ],
+    behaviorHistory: generateBehaviorHistory('Anxiety'),
   },
 ];
 
 export const populateFirestore = onCall(
     {region: 'us-central1', timeoutSeconds: 300},
     async (request) => {
-      const uid = request.auth?.uid;
-      if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+      const uid = request.auth?.uid || 'system';
+      // Require authentication for production use
+      if (!request.auth?.uid) {
+        throw new HttpsError('unauthenticated', 'Admin authentication required.');
+      }
       logger.info('populateFirestore called', {uid});
 
       try {
@@ -230,11 +429,13 @@ export const populateFirestore = onCall(
           operationCount++;
         }
 
-        // Add mock students
+        // Add mock students to 'students' collection (not 'mock_students')
+        // This way the migration function can find them
         for (const student of mockStudents) {
-          const docRef = db.collection('mock_students').doc(student.id);
+          const docRef = db.collection('students').doc(student.id);
           batch.set(docRef, {
             ...student,
+            ownerUid: uid, // Add owner immediately
             createdAt: new Date(),
             updatedAt: new Date(),
           });

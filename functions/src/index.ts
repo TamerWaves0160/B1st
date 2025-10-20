@@ -2,7 +2,84 @@
 import {onCall, HttpsError} from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import {initializeApp} from 'firebase-admin/app';
+import {EmbeddingsService} from './embeddings-service';
+import {LLMService} from './llm-service';
+import {findSimilarDocuments} from './intervention-database';
+
 initializeApp();
+
+// This is the new endpoint that uses the full RAG pipeline.
+export const getIntervention = onCall(
+    {
+      region: 'us-central1',
+      timeoutSeconds: 60,
+      cors: true,
+      // Removed 'invoker: public' - now requires authentication
+    },
+    async (request) => {
+      const uid = request.auth?.uid;
+      if (!uid) {
+        throw new HttpsError('unauthenticated', 'User must be signed in.');
+      }
+
+      const situation = request.data?.situation as string;
+      if (!situation || situation.trim() === '') {
+        throw new HttpsError(
+            'invalid-argument',
+            'A situation description is required.',
+        );
+      }
+
+      logger.info('getIntervention called', {
+        uid,
+        situation: situation.substring(0, 100),
+      });
+
+      try {
+        const embeddingsService = new EmbeddingsService();
+        const llmService = new LLMService();
+
+        // 1. Embed the user's situation
+        const situationEmbedding = await embeddingsService.generateEmbedding(
+            situation,
+        );
+
+        // 2. Retrieve similar interventions from Firestore
+        const similarInterventions = await findSimilarDocuments(
+            situationEmbedding,
+            5, // Retrieve top 5
+        );
+
+        if (similarInterventions.length === 0) {
+          return {
+            recommendation:
+            'I could not find any specific interventions related to your situation, but a behavioral specialist could help you further.',
+          };
+        }
+
+        // 3. Augment and Generate the response
+        const generatedResponse = await llmService.generateRAGResponse(
+            situation,
+            similarInterventions,
+        );
+
+        // 4. Return the generated response
+        return {recommendation: generatedResponse};
+      } catch (error: any) {
+        logger.error('Error in getIntervention:', {
+          uid,
+          error: error.message,
+          stack: error.stack,
+        });
+        throw new HttpsError(
+            'internal',
+            'An unexpected error occurred while generating the intervention.',
+        );
+      }
+    },
+);
+
+// ---------- OLD CODE BELOW (can be removed later) ----------
 
 // ---------- utils ----------
 function isObject(x: unknown): x is Record<string, unknown> {
@@ -318,8 +395,9 @@ Check Firebase Console: https://console.firebase.google.com/project/behaviorfirs
     },
 );
 
-export {recommendInterventions} from './interventions';
-export {generateInterventions, generateComprehensiveAnalysis} from './vertex-ai';
+// Removed: recommendInterventions (replaced by RAG system)
 export {populateFirestore} from './populate-firestore';
 export {generateInterventionEmbeddings, testEmbeddingSimilarity} from './generate-embeddings';
 export {checkEmbeddingsStatus} from './check-embeddings';
+export {reindexInterventions} from './reindex-interventions';
+export {migrateBehaviorHistory} from './migrate-behavior-history';
