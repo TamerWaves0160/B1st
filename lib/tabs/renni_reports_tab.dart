@@ -78,8 +78,8 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
                   child: Text(
                     'Quick Intervention Recommendations',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -88,8 +88,8 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
             Text(
               'Get immediate AI-powered intervention suggestions for challenging behaviors. Perfect for in-the-moment classroom support.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 24),
             TextField(
@@ -139,7 +139,8 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _isAnalyzingIntervention ||
+                onPressed:
+                    _isAnalyzingIntervention ||
                         _interventionController.text.trim().isEmpty
                     ? null
                     : _generateQuickIntervention,
@@ -185,9 +186,9 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
         children: [
           Text(
             'Suggested Intervention',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const Divider(height: 16),
           SelectableText(
@@ -218,8 +219,8 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
                 Text(
                   'Formal FBA & BIP Reports',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
@@ -227,8 +228,8 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
             Text(
               'Generate comprehensive Functional Behavior Analysis (FBA) and Behavior Intervention Plans (BIP) using historical observation data.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 24),
             _buildStudentSelector(),
@@ -280,7 +281,9 @@ class _RenniReportsTabState extends State<RenniReportsTab> {
       });
 
       final data = result.data as Map<String, dynamic>;
-      final recommendation = data['recommendation'] as String? ?? 'No recommendation was generated.';
+      final recommendation =
+          data['recommendation'] as String? ??
+          'No recommendation was generated.';
 
       // Save the report to Firestore for history
       final userId = FirebaseAuth.instance.currentUser?.uid;
